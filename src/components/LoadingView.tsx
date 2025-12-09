@@ -12,7 +12,8 @@ const LoadingView: React.FC<LoadingViewProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size={size} color="#007AFF" />
+      <Text style={styles.title}>Runa Finance</Text>
+      <ActivityIndicator size={size} color="#007AFF" style={styles.indicator} />
       {message && (
         <Text style={styles.message}>{message}</Text>
       )}
@@ -26,6 +27,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#ffffff',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 32,
+  },
+  indicator: {
+    marginBottom: 16,
   },
   message: {
     marginTop: 16,
