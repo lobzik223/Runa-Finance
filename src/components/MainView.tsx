@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import CategoriesView from './CategoriesView';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -17,6 +18,16 @@ const MainView: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
   const [amount, setAmount] = useState('0');
+  const [showCategories, setShowCategories] = useState(false);
+
+  if (showCategories) {
+    return (
+      <CategoriesView
+        type={transactionType}
+        onBack={() => setShowCategories(false)}
+      />
+    );
+  }
 
   return (
     <View style={[styles.wrapper, { 
@@ -80,13 +91,16 @@ const MainView: React.FC = () => {
             style={[
               styles.transactionTypeButton,
               styles.transactionTypeButtonLeft,
-              transactionType === 'income' && styles.transactionTypeButtonActive
+              transactionType === 'income' 
+                ? styles.transactionTypeButtonActive 
+                : styles.transactionTypeButtonInactive
             ]}
             onPress={() => setTransactionType('income')}
           >
             <Text style={[
-              styles.transactionTypeButtonText,
-              transactionType === 'income' && styles.transactionTypeButtonTextActive
+              transactionType === 'income' 
+                ? styles.transactionTypeButtonTextActive 
+                : styles.transactionTypeButtonTextInactive
             ]}>
               Доходы
             </Text>
@@ -94,15 +108,17 @@ const MainView: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.transactionTypeButton,
-              styles.transactionTypeButtonExpense,
               styles.transactionTypeButtonRight,
-              transactionType === 'expense' && styles.transactionTypeButtonExpenseActive
+              transactionType === 'expense' 
+                ? styles.transactionTypeButtonExpenseActive 
+                : styles.transactionTypeButtonExpense
             ]}
             onPress={() => setTransactionType('expense')}
           >
             <Text style={[
-              styles.transactionTypeButtonTextExpense,
-              transactionType === 'expense' && styles.transactionTypeButtonTextExpenseActive
+              transactionType === 'expense' 
+                ? styles.transactionTypeButtonTextExpenseActive 
+                : styles.transactionTypeButtonTextExpense
             ]}>
               Расходы
             </Text>
@@ -110,7 +126,10 @@ const MainView: React.FC = () => {
         </View>
 
         {/* Transaction Details Section */}
-        <TouchableOpacity style={styles.detailField}>
+        <TouchableOpacity 
+          style={styles.detailField}
+          onPress={() => setShowCategories(true)}
+        >
           <Text style={styles.detailFieldLabel}>Категория</Text>
           <Text style={styles.detailFieldArrow}>›</Text>
         </TouchableOpacity>
@@ -312,7 +331,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: 'center',
-    backgroundColor: '#E8E0D4',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -328,6 +346,11 @@ const styles = StyleSheet.create({
   transactionTypeButtonActive: {
     backgroundColor: '#E8E0D4',
   },
+  transactionTypeButtonInactive: {
+    backgroundColor: '#1D4981',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
   transactionTypeButtonExpense: {
     backgroundColor: '#1D4981',
     borderWidth: 1,
@@ -337,13 +360,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8E0D4',
     borderWidth: 0,
   },
-  transactionTypeButtonText: {
+  transactionTypeButtonTextActive: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1D4981',
   },
-  transactionTypeButtonTextActive: {
-    color: '#1D4981',
+  transactionTypeButtonTextInactive: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   transactionTypeButtonTextExpense: {
     fontSize: 16,
@@ -351,6 +376,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   transactionTypeButtonTextExpenseActive: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#1D4981',
   },
   detailField: {
@@ -407,9 +434,9 @@ const styles = StyleSheet.create({
   },
   aiChatCard: {
     flexDirection: 'row',
-    backgroundColor: '#1D4981',
+    backgroundColor: '#D9D9D9',
     borderRadius: 24,
-    padding: 22,
+    padding: 28,
     marginBottom: 24,
     alignItems: 'center',
     shadowColor: '#000',
@@ -441,13 +468,13 @@ const styles = StyleSheet.create({
   aiChatTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#333333',
     marginBottom: 4,
   },
   aiChatDescription: {
     fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    color: '#333333',
+    opacity: 0.8,
   },
   analyticsSection: {
     flexDirection: 'row',
