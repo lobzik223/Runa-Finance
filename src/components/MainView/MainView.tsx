@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,18 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CategoriesView from './CategoriesView';
+import ExpensesView from './ExpensesView';
+import IncomeView from './IncomeView';
+import PaymentMethodView from './PaymentMethodView';
+import ChatView from './ChatView';
+import DepositsAndCreditsView from '../DepositsAndCredits';
+import GoalsView from '../Goals';
+import InvestmentsView from '../Investments';
+import ProfileView from '../Profile';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -19,6 +28,172 @@ const MainView: React.FC = () => {
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
   const [amount, setAmount] = useState('0');
   const [showCategories, setShowCategories] = useState(false);
+  const [showExpenses, setShowExpenses] = useState(false);
+  const [showIncome, setShowIncome] = useState(false);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [showDepositsAndCredits, setShowDepositsAndCredits] = useState(false);
+  const [showGoals, setShowGoals] = useState(false);
+  const [showInvestments, setShowInvestments] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Карта');
+  
+  // Анимация плавного перелива цвета для "ИИ"
+  const colorAnim = useRef(new Animated.Value(0)).current;
+  const [currentColor, setCurrentColor] = useState('#4285F4');
+  
+  useEffect(() => {
+    const colors = [
+      { r: 66, g: 133, b: 244 },   // #4285F4 - Синий
+      { r: 156, g: 39, b: 176 },   // #9C27B0 - Фиолетовый
+      { r: 234, g: 67, b: 53 },    // #EA4335 - Розовый
+    ];
+    
+    const animateColor = () => {
+      Animated.sequence([
+        Animated.timing(colorAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(colorAnim, {
+          toValue: 2,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(colorAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+      ]).start(() => animateColor());
+    };
+    
+    const listenerId = colorAnim.addListener(({ value }) => {
+      const index = Math.floor(value);
+      const progress = value - index;
+      
+      if (index < colors.length - 1) {
+        const color1 = colors[index];
+        const color2 = colors[index + 1];
+        
+        const r = Math.round(color1.r + (color2.r - color1.r) * progress);
+        const g = Math.round(color1.g + (color2.g - color1.g) * progress);
+        const b = Math.round(color1.b + (color2.b - color1.b) * progress);
+        
+        setCurrentColor(`rgb(${r}, ${g}, ${b})`);
+      } else {
+        const color1 = colors[colors.length - 1];
+        const color2 = colors[0];
+        const r = Math.round(color1.r + (color2.r - color1.r) * progress);
+        const g = Math.round(color1.g + (color2.g - color1.g) * progress);
+        const b = Math.round(color1.b + (color2.b - color1.b) * progress);
+        setCurrentColor(`rgb(${r}, ${g}, ${b})`);
+      }
+    });
+    
+    animateColor();
+    
+    return () => {
+      colorAnim.removeListener(listenerId);
+    };
+  }, []);
+
+  // Navigation function
+  const handleNavigate = (screen: 'main' | 'deposits' | 'goals' | 'investments' | 'profile') => {
+    setShowDepositsAndCredits(false);
+    setShowGoals(false);
+    setShowInvestments(false);
+    setShowProfile(false);
+    
+    switch (screen) {
+      case 'deposits':
+        setShowDepositsAndCredits(true);
+        break;
+      case 'goals':
+        setShowGoals(true);
+        break;
+      case 'investments':
+        setShowInvestments(true);
+        break;
+      case 'profile':
+        setShowProfile(true);
+        break;
+      case 'main':
+      default:
+        // Already on main
+        break;
+    }
+  };
+
+  if (showProfile) {
+    return (
+      <ProfileView
+        onBack={() => setShowProfile(false)}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  if (showInvestments) {
+    return (
+      <InvestmentsView
+        onBack={() => setShowInvestments(false)}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  if (showGoals) {
+    return (
+      <GoalsView
+        onBack={() => setShowGoals(false)}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  if (showDepositsAndCredits) {
+    return (
+      <DepositsAndCreditsView
+        onBack={() => setShowDepositsAndCredits(false)}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  if (showChat) {
+    return (
+      <ChatView
+        onBack={() => setShowChat(false)}
+      />
+    );
+  }
+
+  if (showPaymentMethod) {
+    return (
+      <PaymentMethodView
+        onBack={() => setShowPaymentMethod(false)}
+        onSelect={(method) => setSelectedPaymentMethod(method)}
+      />
+    );
+  }
+
+  if (showIncome) {
+    return (
+      <IncomeView
+        onBack={() => setShowIncome(false)}
+      />
+    );
+  }
+
+  if (showExpenses) {
+    return (
+      <ExpensesView
+        onBack={() => setShowExpenses(false)}
+      />
+    );
+  }
 
   if (showCategories) {
     return (
@@ -47,7 +222,7 @@ const MainView: React.FC = () => {
         <View style={styles.header}>
           <View style={styles.logoImageContainer}>
             <Image
-              source={require('../../images/runalogo.png')}
+              source={require('../../../images/runalogo.png')}
               style={styles.logoImage}
               resizeMode="contain"
             />
@@ -60,16 +235,22 @@ const MainView: React.FC = () => {
 
         {/* Summary Cards */}
         <View style={styles.summaryCards}>
-          <View style={[styles.summaryCard, styles.summaryCardLeft]}>
+          <TouchableOpacity 
+            style={[styles.summaryCard, styles.summaryCardLeft]}
+            onPress={() => setShowIncome(true)}
+          >
             <Text style={styles.summaryTitle}>Доходы</Text>
             <Text style={styles.summarySubtitle}>за месяц</Text>
             <Text style={styles.summaryAmount}>65 000 Р</Text>
-          </View>
-          <View style={[styles.summaryCard, styles.summaryCardRight]}>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.summaryCard, styles.summaryCardRight]}
+            onPress={() => setShowExpenses(true)}
+          >
             <Text style={styles.summaryTitle}>Расходы</Text>
             <Text style={styles.summarySubtitle}>за месяц</Text>
             <Text style={[styles.summaryAmount, styles.expenseAmount]}>-20 000Р</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Amount Input Section */}
@@ -133,10 +314,13 @@ const MainView: React.FC = () => {
           <Text style={styles.detailFieldLabel}>Категория</Text>
           <Text style={styles.detailFieldArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.detailField}>
+        <TouchableOpacity 
+          style={styles.detailField}
+          onPress={() => setShowPaymentMethod(true)}
+        >
           <Text style={styles.detailFieldLabel}>Способ оплаты</Text>
           <View style={styles.detailFieldValue}>
-            <Text style={styles.detailFieldValueText}>Карта</Text>
+            <Text style={styles.detailFieldValueText}>{selectedPaymentMethod}</Text>
             <Text style={[styles.detailFieldArrow, { marginLeft: 8 }]}>›</Text>
           </View>
         </TouchableOpacity>
@@ -147,12 +331,22 @@ const MainView: React.FC = () => {
         </TouchableOpacity>
 
         {/* AI Chat Section */}
-        <TouchableOpacity style={styles.aiChatCard}>
-          <View style={styles.aiChatIcon}>
-            <Text style={styles.aiChatEmoji}>🤖</Text>
+        <TouchableOpacity 
+          style={styles.aiChatCard}
+          onPress={() => setShowChat(true)}
+        >
+          <View style={styles.aiChatIconWrapper}>
+            <View style={styles.aiChatIcon}>
+              <Image 
+                source={require('../icon/chatlogo.png')} 
+                style={styles.aiChatImage}
+              />
+            </View>
           </View>
           <View style={styles.aiChatContent}>
-            <Text style={styles.aiChatTitle}>Чат с ИИ</Text>
+            <Text style={styles.aiChatTitle}>
+              Чат с <Text style={[styles.aiChatTitleHighlight, { color: currentColor }]}>ИИ</Text>
+            </Text>
             <Text style={styles.aiChatDescription}>
               Запросите совет или попросите проанализировать ваши расходы
             </Text>
@@ -162,7 +356,10 @@ const MainView: React.FC = () => {
         {/* Analytics Section */}
         <View style={styles.analyticsSection}>
           <Text style={styles.analyticsTitle}>Аналитика</Text>
-          <TouchableOpacity style={styles.detailsButton}>
+          <TouchableOpacity 
+            style={styles.detailsButton}
+            onPress={() => setShowExpenses(true)}
+          >
             <Text style={styles.detailsButtonText}>Детали</Text>
           </TouchableOpacity>
         </View>
@@ -171,25 +368,52 @@ const MainView: React.FC = () => {
       {/* Bottom Navigation - Island Style */}
       <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>🏠</Text>
-            <Text style={[styles.navLabel, styles.navLabelActive]}>Главная</Text>
+          <TouchableOpacity style={[styles.navItem, styles.navItemCredit]}>
+            <Image 
+              source={require('../icon/home.png')} 
+              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+            />
+            <Text style={[styles.navLabel, styles.navLabelActive, styles.navLabelCreditPosition]}>Главная</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>🏦</Text>
-            <Text style={styles.navLabel}>Вклады и кредиты</Text>
+          <TouchableOpacity 
+            style={[styles.navItem, styles.navItemCredit, styles.navItemCreditDeposits]}
+            onPress={() => setShowDepositsAndCredits(true)}
+          >
+            <Image 
+              source={require('../icon/credit.png')} 
+              style={[styles.navIconImageCredit, styles.navIconImageCreditPositionDeposits]}
+            />
+            <Text style={[styles.navLabel, styles.navLabelCreditPositionDeposits]}>Вклады</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>📋</Text>
-            <Text style={styles.navLabel}>Цели</Text>
+          <TouchableOpacity 
+            style={[styles.navItem, styles.navItemCredit]}
+            onPress={() => setShowGoals(true)}
+          >
+            <Image 
+              source={require('../icon/analiz.png')} 
+              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+            />
+            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Цели</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>📊</Text>
-            <Text style={styles.navLabel}>Инвестиции</Text>
+          <TouchableOpacity 
+            style={[styles.navItem, styles.navItemCredit]}
+            onPress={() => setShowInvestments(true)}
+          >
+            <Image 
+              source={require('../icon/invist.png')} 
+              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+            />
+            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Инвестиции</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>👤</Text>
-            <Text style={styles.navLabel}>Профиль</Text>
+          <TouchableOpacity 
+            style={[styles.navItem, styles.navItemCredit]}
+            onPress={() => setShowProfile(true)}
+          >
+            <Image 
+              source={require('../icon/profile.png')} 
+              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+            />
+            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Профиль</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -445,22 +669,41 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  aiChatIcon: {
+  aiChatIconWrapper: {
     width: 56,
     height: 56,
+    borderRadius: 28,
+    marginRight: 18,
+    // Легкий перелив от цвета фона к белому
+    backgroundColor: '#E8E0D4',
+    // Матовая подсветка с переливом
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    elevation: 8,
+    // Градиентная обводка (имитация перелива от #E8E0D4 к белому)
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  aiChatIcon: {
+    width: '100%',
+    height: '100%',
     borderRadius: 28,
     backgroundColor: '#E8E0D4',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    // Внутренняя тень для перелива
+    shadowColor: '#E8E0D4',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
-  aiChatEmoji: {
-    fontSize: 28,
+  aiChatImage: {
+    width: 36,
+    height: 36,
+    resizeMode: 'contain',
   },
   aiChatContent: {
     flex: 1,
@@ -470,6 +713,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333333',
     marginBottom: 4,
+  },
+  aiChatTitleHighlight: {
+    fontWeight: '700',
   },
   aiChatDescription: {
     fontSize: 14,
@@ -543,6 +789,42 @@ const styles = StyleSheet.create({
   navIcon: {
     fontSize: 24,
     marginBottom: 4,
+  },
+  navIconCreditPosition: {
+    marginTop: -2,
+    marginBottom: 2,
+  },
+  navIconImage: {
+    width: 32,
+    height: 32,
+    marginBottom: 4,
+    tintColor: '#FFFFFF',
+  },
+  navIconImageCredit: {
+    width: 36,
+    height: 36,
+    marginBottom: 4,
+    tintColor: '#FFFFFF',
+  },
+  navIconImageCreditPosition: {
+    marginTop: -2,
+    marginBottom: 2,
+  },
+  navIconImageCreditPositionDeposits: {
+    marginTop: -4,
+    marginBottom: 0,
+  },
+  navItemCredit: {
+    paddingTop: 2,
+  },
+  navItemCreditDeposits: {
+    paddingTop: 0,
+  },
+  navLabelCreditPosition: {
+    marginTop: -2,
+  },
+  navLabelCreditPositionDeposits: {
+    marginTop: 0,
   },
   navLabel: {
     fontSize: SCREEN_WIDTH < 375 ? 9 : 11,

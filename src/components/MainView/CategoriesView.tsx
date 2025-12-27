@@ -18,7 +18,7 @@ interface CategoriesViewProps {
 
 const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
   const insets = useSafeAreaInsets();
-  const [expandedCategory, setExpandedCategory] = useState<string | null>('Зарплата');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const incomeCategories = [
     {
@@ -76,7 +76,7 @@ const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
       <View style={styles.backgroundOverlay} />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 60 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
@@ -95,7 +95,7 @@ const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
             <TouchableOpacity
               style={[
                 styles.categoryItem,
-                category.id === 'salary' && type === 'income' && styles.categoryItemMain,
+                'subcategories' in category && expandedCategory === category.id && styles.categoryItemMain,
                 'subcategories' in category && expandedCategory === category.id && styles.categoryItemExpanded
               ]}
               onPress={() => {
