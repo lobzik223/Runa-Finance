@@ -29,7 +29,8 @@
     "@babel/core": "^7.24.0",
     "@types/react": "~19.1.10",
     "@types/react-native": "^0.72.8",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "babel-preset-expo": "^9.2.0"
   },
   "private": true
 }
