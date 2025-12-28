@@ -14,9 +14,6 @@ config.transformer = {
   }),
   babelTransformerPath: require.resolve('metro-react-native-babel-transformer'),
   unstable_allowRequireContext: true,
-  // Явно указываем, что нужно транспилировать react-native
-  enableBabelRCLookup: false,
-  enableBabelRuntime: false,
 };
 
 // Настраиваем resolver
