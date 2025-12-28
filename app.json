@@ -14,28 +14,15 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.runafinance.app",
-      "statusBar": {
-        "style": "light",
-        "backgroundColor": "#788FAC"
-      }
+      "bundleIdentifier": "com.runafinance.app"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#788FAC"
       },
-      "package": "com.runafinance.app",
-      "navigationBar": {
-        "backgroundColor": "#788FAC"
-      },
-      "statusBar": {
-        "backgroundColor": "#788FAC",
-        "barStyle": "light-content",
-        "translucent": false
-      }
+      "package": "com.runafinance.app"
     },
     "plugins": [
-      "expo-router",
       "expo-asset"
     ],
     "scheme": "runa-finance"
