@@ -568,41 +568,42 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   transactionTypeButtonActive: {
-    backgroundColor: '#E8E0D4',
+    backgroundColor: '#1D4981',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
   transactionTypeButtonInactive: {
-    backgroundColor: '#1D4981',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-  },
-  transactionTypeButtonExpense: {
-    backgroundColor: '#1D4981',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-  },
-  transactionTypeButtonExpenseActive: {
     backgroundColor: '#E8E0D4',
     borderWidth: 0,
+  },
+  transactionTypeButtonExpense: {
+    backgroundColor: '#E8E0D4',
+    borderWidth: 0,
+  },
+  transactionTypeButtonExpenseActive: {
+    backgroundColor: '#1D4981',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
   },
   transactionTypeButtonTextActive: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1D4981',
+    color: '#FFFFFF',
   },
   transactionTypeButtonTextInactive: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#1D4981',
   },
   transactionTypeButtonTextExpense: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#1D4981',
   },
   transactionTypeButtonTextExpenseActive: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1D4981',
+    color: '#FFFFFF',
   },
   detailField: {
     flexDirection: 'row',
