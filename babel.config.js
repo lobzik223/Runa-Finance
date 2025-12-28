@@ -1,17 +1,7 @@
 module.exports = function(api) {
   api.cache(true);
   return {
-    presets: [
-      [
-        'babel-preset-expo',
-        {
-          // Явно включаем поддержку приватных методов
-          native: {
-            unstable_transformProfile: 'default',
-          },
-        },
-      ],
-    ],
+    presets: ['babel-preset-expo'],
     plugins: [
       [
         '@babel/plugin-transform-class-properties',
@@ -28,5 +18,16 @@ module.exports = function(api) {
       // react-native-reanimated должен быть последним
       'react-native-reanimated/plugin',
     ],
+    // Применяем плагины ко всем файлам, включая node_modules/react-native
+    env: {
+      production: {
+        plugins: [
+          '@babel/plugin-transform-class-properties',
+          '@babel/plugin-transform-private-methods',
+          '@babel/plugin-transform-private-property-in-object',
+          'react-native-reanimated/plugin',
+        ],
+      },
+    },
   };
 };

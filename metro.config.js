@@ -3,7 +3,7 @@ const { getDefaultConfig } = require('expo/metro-config');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-// Включаем транспиляцию для react-native
+// Включаем транспиляцию для react-native из node_modules
 config.transformer = {
   ...config.transformer,
   getTransformOptions: async () => ({
@@ -12,6 +12,8 @@ config.transformer = {
       inlineRequires: true,
     },
   }),
+  // Явно указываем, что нужно транспилировать react-native
+  babelTransformerPath: require.resolve('metro-react-native-babel-transformer'),
   // Включаем транспиляцию для всех модулей
   unstable_allowRequireContext: true,
 };
