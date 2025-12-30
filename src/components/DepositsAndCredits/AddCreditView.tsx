@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Switch,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,19 +28,16 @@ const AddCreditView: React.FC<AddCreditViewProps> = ({ onBack }) => {
   const [paymentDate, setPaymentDate] = useState('');
 
   return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
+    <View style={styles.wrapper}>
       <View style={styles.backgroundOverlay} />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 60 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Добавление кредита</Text>
+          <Text style={styles.headerTitle}>Кредиты</Text>
         </View>
         <View style={styles.backButton} />
       </View>
@@ -75,8 +73,10 @@ const AddCreditView: React.FC<AddCreditViewProps> = ({ onBack }) => {
       </View>
 
       {/* Content */}
-      <View
-        style={[styles.scrollView, styles.content, { paddingBottom: insets.bottom + 20 }]}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
+        showsVerticalScrollIndicator={false}
       >
         {/* Credit Name Field */}
         <View style={styles.fieldContainer}>
@@ -162,7 +162,7 @@ const AddCreditView: React.FC<AddCreditViewProps> = ({ onBack }) => {
             <Text style={styles.addButtonText}>Добавить кредит</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -196,18 +196,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backArrow: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 32,
+    color: '#000000',
+    fontWeight: '400',
   },
   headerContent: {
     flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 42,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#E8E0D4',
   },
   tabsContainer: {
     paddingHorizontal: 20,

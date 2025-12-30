@@ -58,14 +58,11 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
   const yAxisValues = [0, 400, 800, 1000, 1700, 2000];
 
   return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
+    <View style={styles.wrapper}>
       <View style={styles.backgroundOverlay} />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 60 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.headerPlaceholder} />
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Инвестиции</Text>
@@ -76,7 +73,7 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
       {/* Main Content */}
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Investment Graph Card */}
@@ -226,59 +223,6 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
           </View>
         </View>
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit]} 
-            onPress={() => onNavigate ? onNavigate('main') : onBack?.()}
-          >
-            <Image 
-              source={require('../icon/home.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Главная</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit, styles.navItemCreditDeposits]}
-            onPress={() => onNavigate?.('deposits')}
-          >
-            <Image 
-              source={require('../icon/credit.png')} 
-              style={[styles.navIconImageCredit, styles.navIconImageCreditPositionDeposits]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPositionDeposits]}>Вклады</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => onNavigate?.('goals')}
-          >
-            <Image 
-              source={require('../icon/analiz.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Цели</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.navItem, styles.navItemCredit]}>
-            <Image 
-              source={require('../icon/invist.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelActive, styles.navLabelCreditPosition]}>Инвестиции</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => onNavigate?.('profile')}
-          >
-            <Image 
-              source={require('../icon/profile.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Профиль</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </View>
   );
 };
@@ -313,7 +257,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 42,
     fontWeight: '700',
     color: '#E8E0D4',
   },

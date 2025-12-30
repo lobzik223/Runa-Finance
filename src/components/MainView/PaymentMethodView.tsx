@@ -39,14 +39,11 @@ const PaymentMethodView: React.FC<PaymentMethodViewProps> = ({ onBack, onSelect 
   };
 
   return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
+    <View style={styles.wrapper}>
       <View style={styles.backgroundOverlay} />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 60 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
@@ -110,9 +107,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backArrow: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 32,
+    color: '#000000',
+    fontWeight: '400',
   },
   title: {
     fontSize: 28,

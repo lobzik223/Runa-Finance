@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,22 +25,22 @@ const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
     {
       id: 'salary',
       name: 'Зарплата',
-      icon: '💼',
+      icon: require('../../../images/icon/zarplata.png'),
       subcategories: [
         { id: 'bonus', name: 'Премии / бонусы' },
         { id: 'main', name: 'Основная зарплата' },
         { id: 'advance', name: 'Аванс' },
       ],
     },
-    { id: 'freelance', name: 'Подработка / Фриланс', icon: '💼' },
-    { id: 'business', name: 'Бизнес-доход', icon: '🏭' },
-    { id: 'investment', name: 'Инвестиционные доходы', icon: '📈' },
-    { id: 'passive', name: 'Пассивный доход', icon: '🤲' },
-    { id: 'rent', name: 'Аренда', icon: '🏠' },
-    { id: 'gifts', name: 'Подарки и переводы', icon: '🎁' },
-    { id: 'social', name: 'Социальные выплаты', icon: '🛡️' },
-    { id: 'property', name: 'Продажа имущества', icon: '🏘️' },
-    { id: 'other', name: 'Прочие доходы', icon: '👛' },
+    { id: 'freelance', name: 'Подработка / Фриланс', icon: require('../../../images/icon/freelance.png') },
+    { id: 'business', name: 'Бизнес-доход', icon: require('../../../images/icon/biznes.png') },
+    { id: 'investment', name: 'Инвестиционные доходы', icon: require('../../../images/icon/dohodinvest.png') },
+    { id: 'passive', name: 'Пассивный доход', icon: require('../../../images/icon/pasifdohod.png') },
+    { id: 'rent', name: 'Аренда', icon: require('../../../images/icon/arenda.png') },
+    { id: 'gifts', name: 'Подарки и переводы', icon: require('../../../images/icon/donate.png') },
+    { id: 'social', name: 'Социальные выплаты', icon: require('../../../images/icon/soc.png') },
+    { id: 'property', name: 'Продажа имущества', icon: require('../../../images/icon/sale.png') },
+    { id: 'other', name: 'Прочие доходы', icon: require('../../../images/icon/procdohod.png') },
   ];
 
   const expenseCategories = [
@@ -69,14 +70,11 @@ const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
   };
 
   return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
+    <View style={styles.wrapper}>
       <View style={styles.backgroundOverlay} />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 60 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
@@ -105,7 +103,7 @@ const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
               }}
             >
               <View style={styles.categoryLeft}>
-                <Text style={styles.categoryIcon}>{category.icon}</Text>
+                <Image source={category.icon} style={styles.categoryIcon} resizeMode="contain" />
                 <Text style={styles.categoryText}>{category.name}</Text>
               </View>
               <Text style={styles.categoryArrow}>→</Text>
@@ -161,9 +159,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backArrow: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 32,
+    color: '#000000',
+    fontWeight: '400',
   },
   title: {
     fontSize: 28,
@@ -207,7 +205,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   categoryIcon: {
-    fontSize: 24,
+    width: 24,
+    height: 24,
     marginRight: 12,
   },
   categoryText: {

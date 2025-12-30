@@ -24,20 +24,16 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
+    <View style={styles.wrapper}>
       <View style={styles.backgroundOverlay} />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 80 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Детали</Text>
-          <Text style={styles.headerSubtitle}>{creditTitle}</Text>
         </View>
         <View style={styles.backButton} />
       </View>
@@ -45,9 +41,11 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
       {/* Content */}
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={styles.headerSubtitle}>{creditTitle}</Text>
+
         {/* Credit Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
@@ -80,7 +78,7 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
             <Text style={styles.paymentIcon}>✓</Text>
           </View>
           <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>Сентябрь — 3400 Р</Text>
+            <Text style={styles.paymentMonth}>Сентябрь — 3 400 Р</Text>
           </View>
           <Text style={styles.paymentStatusPaid}>Оплачено</Text>
         </View>
@@ -90,7 +88,7 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
             <Text style={styles.paymentIcon}>✓</Text>
           </View>
           <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>Октябрь — 3400 Р</Text>
+            <Text style={styles.paymentMonth}>Октябрь — 3 400 Р</Text>
           </View>
           <Text style={styles.paymentStatusPaid}>Оплачено</Text>
         </View>
@@ -100,7 +98,7 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
             <View style={styles.paymentIconPending} />
           </View>
           <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>Ноябрь — 3400 Р</Text>
+            <Text style={styles.paymentMonth}>Ноябрь — 3 400 Р</Text>
           </View>
           <Text style={styles.paymentStatusPending}>Ожидается</Text>
         </View>
@@ -114,44 +112,6 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
           <Text style={styles.closeButtonText}>Закрыть кредит</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Bottom Navigation - Island Style */}
-      <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity 
-            style={styles.navItem}
-            onPress={() => onBack && onBack()}
-          >
-            <Text style={styles.navIcon}>🏠</Text>
-            <Text style={styles.navLabel}>Главная</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>🏦</Text>
-            <Text style={[styles.navLabel, styles.navLabelActive]}>Вклады и кредиты</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Image 
-              source={require('../icon/analiz.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={styles.navLabel}>Цели</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Image 
-              source={require('../icon/invist.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={styles.navLabel}>Инвестиции</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Image 
-              source={require('../icon/profile.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={styles.navLabel}>Профиль</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </View>
   );
 };
@@ -185,24 +145,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backArrow: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 32,
+    color: '#000000',
+    fontWeight: '400',
   },
   headerContent: {
     flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 42,
     fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
+    color: '#E8E0D4',
   },
   headerSubtitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
     color: '#A0522D',
+    textAlign: 'center',
+    marginBottom: 16,
   },
   scrollView: {
     flex: 1,
@@ -328,7 +289,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   closeButton: {
-    backgroundColor: '#DC3545',
+    backgroundColor: '#9A031E',
     borderRadius: 20,
     paddingVertical: 16,
     alignItems: 'center',

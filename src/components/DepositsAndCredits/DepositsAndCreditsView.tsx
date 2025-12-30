@@ -54,14 +54,11 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
   }
 
   return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
+    <View style={styles.wrapper}>
       <View style={styles.backgroundOverlay} />
       
       {/* Tabs */}
-      <View style={[styles.tabsContainer, { paddingTop: insets.top + 60 }]}>
+      <View style={[styles.tabsContainer, { paddingTop: insets.top + 20 }]}>
         <View style={styles.tabsWrapper}>
           <TouchableOpacity
             style={[
@@ -93,14 +90,18 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
       {/* Content */}
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
         showsVerticalScrollIndicator={false}
       >
         {activeTab === 'credits' ? (
           <>
             {/* Payment Notification Card */}
             <View style={styles.notificationCard}>
-              <Text style={styles.notificationIcon}>🔔</Text>
+              <Image 
+                source={require('../../../images/Attache2d_image.png')} 
+                style={styles.notificationIconImage}
+                resizeMode="contain"
+              />
               <View style={styles.notificationContent}>
                 <Text style={styles.notificationDate}>Завтра 30 ноября</Text>
                 <Text style={styles.notificationLabel}>По плану финансовое действие:</Text>
@@ -189,7 +190,11 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
           <>
             {/* Payment Notification Card for Deposits */}
             <View style={styles.notificationCard}>
-              <Text style={styles.notificationIcon}>🔔</Text>
+              <Image 
+                source={require('../../../images/Attache2d_image.png')} 
+                style={styles.notificationIconImage}
+                resizeMode="contain"
+              />
               <View style={styles.notificationContent}>
                 <Text style={styles.notificationDate}>Завтра 30 ноября</Text>
                 <Text style={styles.notificationLabel}>По плану финансовое действие:</Text>
@@ -233,59 +238,6 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
           </>
         )}
       </ScrollView>
-
-      {/* Bottom Navigation - Island Style */}
-      <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => onNavigate ? onNavigate('main') : onBack?.()}
-          >
-            <Image 
-              source={require('../icon/home.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Главная</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.navItem, styles.navItemCredit, styles.navItemCreditDeposits]}>
-            <Image 
-              source={require('../icon/credit.png')} 
-              style={[styles.navIconImageCredit, styles.navIconImageCreditPositionDeposits]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelActive, styles.navLabelCreditPositionDeposits]}>Вклады</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => onNavigate?.('goals')}
-          >
-            <Image 
-              source={require('../icon/analiz.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Цели</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => onNavigate?.('investments')}
-          >
-            <Image 
-              source={require('../icon/invist.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Инвестиции</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => onNavigate?.('profile')}
-          >
-            <Image 
-              source={require('../icon/profile.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
-            />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Профиль</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </View>
   );
 };
@@ -303,14 +255,6 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT * 2,
     backgroundColor: '#788FAC',
     zIndex: 0,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    zIndex: 1,
   },
   backButton: {
     width: 40,
@@ -330,22 +274,21 @@ const styles = StyleSheet.create({
   },
   tabsWrapper: {
     flexDirection: 'row',
-    borderRadius: 16,
-    overflow: 'hidden',
+    backgroundColor: '#FDEBD0',
+    borderRadius: 30,
+    padding: 4,
   },
   tab: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: '#E8E0D4',
+    borderRadius: 26,
   },
   tabLeft: {
-    borderTopLeftRadius: 16,
-    borderBottomLeftRadius: 16,
+    // Больше не нужны отдельные радиусы, используем общий
   },
   tabRight: {
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16,
+    // Больше не нужны отдельные радиусы, используем общий
   },
   tabActive: {
     backgroundColor: '#1D4981',
@@ -368,21 +311,21 @@ const styles = StyleSheet.create({
   },
   notificationCard: {
     flexDirection: 'row',
-    backgroundColor: '#E8E0D4',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 18,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-    alignItems: 'flex-start',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+    alignItems: 'center',
   },
-  notificationIcon: {
-    fontSize: 28,
+  notificationIconImage: {
+    width: 60,
+    height: 60,
     marginRight: 14,
-    marginTop: 2,
   },
   notificationContent: {
     flex: 1,
@@ -390,7 +333,7 @@ const styles = StyleSheet.create({
   notificationDate: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1D4981',
     marginBottom: 4,
   },
   notificationLabel: {

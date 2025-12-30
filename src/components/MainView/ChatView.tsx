@@ -9,6 +9,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -57,28 +58,21 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
   };
 
   return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
+    <View style={styles.wrapper}>
       <View style={styles.backgroundOverlay} />
       
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 60 }]}>
-        {onBack && (
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Text style={styles.backArrow}>←</Text>
-          </TouchableOpacity>
-        )}
-        <Text style={styles.title}>Чат с ИИ</Text>
-        {onBack && <View style={styles.backButton} />}
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backArrow}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Чат с ИИ</Text>
       </View>
 
-      {/* Messages List */}
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
           style={styles.scrollView}
@@ -94,68 +88,60 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
               ]}
             >
               {msg.sender === 'runa' && (
-                <View style={[styles.avatar, styles.avatarRuna]}>
-                  <View style={styles.avatarInner}>
-                    <Text style={styles.avatarEmoji}>🤖</Text>
-                  </View>
+                <View style={styles.avatarLeft}>
+                  <Image source={require('../icon/chatlogo.png')} style={styles.avatarImage} />
                 </View>
               )}
+              
               <View style={styles.messageContent}>
+                <Text style={[styles.senderName, msg.sender === 'user' ? styles.senderNameRight : styles.senderNameLeft]}>
+                  {msg.senderName}
+                </Text>
                 <View
                   style={[
                     styles.messageBubble,
                     msg.sender === 'user' ? styles.messageBubbleRight : styles.messageBubbleLeft,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.senderName,
-                      msg.sender === 'user' ? styles.senderNameRight : styles.senderNameLeft,
-                    ]}
-                  >
-                    {msg.senderName}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.messageText,
-                      msg.sender === 'user' ? styles.messageTextRight : styles.messageTextLeft,
-                    ]}
-                  >
+                  <Text style={[styles.messageText, msg.sender === 'user' ? styles.messageTextRight : styles.messageTextLeft]}>
                     {msg.text}
                   </Text>
-                  {msg.sender === 'runa' && (
-                    <View style={styles.bubbleTailLeft} />
-                  )}
-                  {msg.sender === 'user' && (
-                    <View style={styles.bubbleTailRight} />
+                  
+                  {/* Bubble Tails */}
+                  {msg.sender === 'runa' ? (
+                    <View style={styles.tailLeft} />
+                  ) : (
+                    <View style={styles.tailRight} />
                   )}
                 </View>
               </View>
+
               {msg.sender === 'user' && (
-                <View style={styles.avatar}>
-                  <View style={styles.avatarInner}>
-                    <Text style={styles.avatarEmoji}>👤</Text>
-                  </View>
+                <View style={styles.avatarRight}>
+                  <Image source={require('../icon/profile.png')} style={styles.avatarImage} />
                 </View>
               )}
             </View>
           ))}
         </ScrollView>
 
-        {/* Input Area */}
-        <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 10 }]}>
-          <TextInput
-            style={styles.input}
-            placeholder="Введите сообщения"
-            placeholderTextColor="#999"
-            value={message}
-            onChangeText={setMessage}
-            multiline
-            onSubmitEditing={handleSend}
-          />
-          <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-            <Text style={styles.sendButtonText}>›</Text>
-          </TouchableOpacity>
+        {/* Input Area - Redesigned to match image */}
+        <View style={[styles.inputWrapper, { marginBottom: insets.bottom + 15 }]}>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Введите сообщения"
+              placeholderTextColor="#999"
+              value={message}
+              onChangeText={setMessage}
+              multiline
+            />
+            <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+              <View style={styles.sendIconCircle}>
+                <Text style={styles.sendButtonText}>›</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -172,51 +158,48 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 2,
+    height: SCREEN_HEIGHT,
     backgroundColor: '#788FAC',
-    zIndex: 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    zIndex: 1,
+    marginBottom: 20,
   },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
-    alignItems: 'center',
+    zIndex: 10,
   },
   backArrow: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 32,
+    color: '#000000',
+    fontWeight: '400',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
+  headerTitle: {
     flex: 1,
+    fontSize: 42,
+    fontWeight: '700',
+    color: '#E8E0D4',
+    textAlign: 'center',
+    marginRight: 40,
   },
   keyboardView: {
     flex: 1,
-    zIndex: 1,
   },
   scrollView: {
     flex: 1,
   },
   messagesContainer: {
     paddingHorizontal: 16,
-    paddingTop: 24,
+    paddingTop: 10,
   },
   messageWrapper: {
     flexDirection: 'row',
-    marginBottom: 20,
-    alignItems: 'flex-start',
+    marginBottom: 24,
+    alignItems: 'flex-end',
   },
   messageWrapperLeft: {
     justifyContent: 'flex-start',
@@ -224,152 +207,145 @@ const styles = StyleSheet.create({
   messageWrapperRight: {
     justifyContent: 'flex-end',
   },
-  messageContent: {
-    maxWidth: '75%',
-    marginHorizontal: 10,
-  },
-  messageBubble: {
+  avatarLeft: {
+    width: 36,
+    height: 36,
     borderRadius: 18,
-    padding: 14,
-    paddingTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-    position: 'relative',
-  },
-  messageBubbleLeft: {
-    backgroundColor: '#1D4981',
-    borderBottomLeftRadius: 6,
-  },
-  messageBubbleRight: {
     backgroundColor: '#E8E0D4',
-    borderBottomRightRadius: 6,
+    marginRight: -10,
+    zIndex: 2,
+    marginBottom: -5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D4C5B0',
+  },
+  avatarRight: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E8E0D4',
+    marginLeft: -10,
+    zIndex: 2,
+    marginBottom: -5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D4C5B0',
+  },
+  avatarImage: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  messageContent: {
+    maxWidth: '80%',
   },
   senderName: {
-    fontSize: 13,
-    marginBottom: 8,
-    fontWeight: '600',
-    letterSpacing: 0.2,
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+    paddingHorizontal: 15,
   },
   senderNameLeft: {
-    color: '#D4C5B0',
+    color: '#D4A373',
     textAlign: 'left',
   },
   senderNameRight: {
-    color: '#A0522D',
-    textAlign: 'left',
+    color: '#333',
+    textAlign: 'right',
   },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 22,
-    letterSpacing: 0.1,
-  },
-  messageTextLeft: {
-    color: '#FFFFFF',
-  },
-  messageTextRight: {
-    color: '#333333',
-  },
-  bubbleTailLeft: {
-    position: 'absolute',
-    left: -10,
-    bottom: 14,
-    width: 0,
-    height: 0,
-    borderTopWidth: 10,
-    borderTopColor: 'transparent',
-    borderBottomWidth: 10,
-    borderBottomColor: 'transparent',
-    borderRightWidth: 10,
-    borderRightColor: '#1D4981',
-  },
-  bubbleTailRight: {
-    position: 'absolute',
-    right: -10,
-    bottom: 14,
-    width: 0,
-    height: 0,
-    borderTopWidth: 10,
-    borderTopColor: 'transparent',
-    borderBottomWidth: 10,
-    borderBottomColor: 'transparent',
-    borderLeftWidth: 10,
-    borderLeftColor: '#E8E0D4',
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#E8E0D4',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 36,
-    borderWidth: 2,
-    borderColor: '#D4C5B0',
+  messageBubble: {
+    padding: 16,
+    borderRadius: 25,
+    minWidth: 100,
+    position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  avatarRuna: {
-    marginTop: 44,
+  messageBubbleLeft: {
+    backgroundColor: '#1D4981',
+    borderBottomLeftRadius: 5,
   },
-  avatarInner: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+  messageBubbleRight: {
+    backgroundColor: '#FDEBD0',
+    borderBottomRightRadius: 5,
   },
-  avatarEmoji: {
-    fontSize: 24,
+  messageText: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  messageTextLeft: {
+    color: '#FFFFFF',
+  },
+  messageTextRight: {
+    color: '#8B4513',
+  },
+  tailLeft: {
+    position: 'absolute',
+    left: -8,
+    bottom: 0,
+    width: 15,
+    height: 15,
+    backgroundColor: '#1D4981',
+    borderBottomLeftRadius: 15,
+    zIndex: -1,
+  },
+  tailRight: {
+    position: 'absolute',
+    right: -8,
+    bottom: 0,
+    width: 15,
+    height: 15,
+    backgroundColor: '#FDEBD0',
+    borderBottomRightRadius: 15,
+    zIndex: -1,
+  },
+  inputWrapper: {
+    paddingHorizontal: 16,
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: '#788FAC',
-    borderTopWidth: 0,
+    alignItems: 'center',
+    backgroundColor: '#FDEBD0',
+    borderRadius: 35,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
   input: {
     flex: 1,
-    backgroundColor: '#E8E0D4',
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#333333',
+    fontSize: 18,
+    color: '#333',
     maxHeight: 100,
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    marginLeft: 10,
+  },
+  sendIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#1D4981',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 5,
   },
   sendButtonText: {
-    fontSize: 22,
     color: '#FFFFFF',
+    fontSize: 30,
     fontWeight: '700',
+    marginTop: -4,
   },
 });
 
 export default ChatView;
-

@@ -16,6 +16,8 @@ import ExpensesView from './ExpensesView';
 import IncomeView from './IncomeView';
 import PaymentMethodView from './PaymentMethodView';
 import ChatView from './ChatView';
+import AnalyticsView from './AnalyticsView';
+import PremiumView from '../Profile/PremiumView';
 import DepositsAndCreditsView from '../DepositsAndCredits';
 import GoalsView from '../Goals';
 import InvestmentsView from '../Investments';
@@ -36,6 +38,8 @@ const MainView: React.FC = () => {
   const [showGoals, setShowGoals] = useState(false);
   const [showInvestments, setShowInvestments] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showPremium, setShowPremium] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Карта');
   
   // Анимация плавного перелива цвета для "ИИ"
@@ -105,6 +109,13 @@ const MainView: React.FC = () => {
     setShowGoals(false);
     setShowInvestments(false);
     setShowProfile(false);
+    setShowChat(false);
+    setShowAnalytics(false);
+    setShowPremium(false);
+    setShowIncome(false);
+    setShowExpenses(false);
+    setShowCategories(false);
+    setShowPaymentMethod(false);
     
     switch (screen) {
       case 'deposits':
@@ -126,97 +137,111 @@ const MainView: React.FC = () => {
     }
   };
 
-  if (showProfile) {
-    return (
-      <ProfileView
-        onBack={() => setShowProfile(false)}
-        onNavigate={handleNavigate}
-      />
-    );
-  }
+  const renderContent = () => {
+    if (showProfile) {
+      return (
+        <ProfileView
+          onBack={() => setShowProfile(false)}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
 
-  if (showInvestments) {
-    return (
-      <InvestmentsView
-        onBack={() => setShowInvestments(false)}
-        onNavigate={handleNavigate}
-      />
-    );
-  }
+    if (showInvestments) {
+      return (
+        <InvestmentsView
+          onBack={() => setShowInvestments(false)}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
 
-  if (showGoals) {
-    return (
-      <GoalsView
-        onBack={() => setShowGoals(false)}
-        onNavigate={handleNavigate}
-      />
-    );
-  }
+    if (showGoals) {
+      return (
+        <GoalsView
+          onBack={() => setShowGoals(false)}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
 
-  if (showDepositsAndCredits) {
-    return (
-      <DepositsAndCreditsView
-        onBack={() => setShowDepositsAndCredits(false)}
-        onNavigate={handleNavigate}
-      />
-    );
-  }
+    if (showDepositsAndCredits) {
+      return (
+        <DepositsAndCreditsView
+          onBack={() => setShowDepositsAndCredits(false)}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
 
-  if (showChat) {
-    return (
-      <ChatView
-        onBack={() => setShowChat(false)}
-      />
-    );
-  }
+    if (showAnalytics) {
+      return (
+        <AnalyticsView
+          onBack={() => setShowAnalytics(false)}
+        />
+      );
+    }
 
-  if (showPaymentMethod) {
-    return (
-      <PaymentMethodView
-        onBack={() => setShowPaymentMethod(false)}
-        onSelect={(method) => setSelectedPaymentMethod(method)}
-      />
-    );
-  }
+    if (showPremium) {
+      return (
+        <PremiumView
+          onBack={() => setShowPremium(false)}
+        />
+      );
+    }
 
-  if (showIncome) {
-    return (
-      <IncomeView
-        onBack={() => setShowIncome(false)}
-      />
-    );
-  }
+    if (showChat) {
+      return (
+        <ChatView
+          onBack={() => setShowChat(false)}
+        />
+      );
+    }
 
-  if (showExpenses) {
-    return (
-      <ExpensesView
-        onBack={() => setShowExpenses(false)}
-      />
-    );
-  }
+    if (showPaymentMethod) {
+      return (
+        <PaymentMethodView
+          onBack={() => setShowPaymentMethod(false)}
+          onSelect={(method) => setSelectedPaymentMethod(method)}
+        />
+      );
+    }
 
-  if (showCategories) {
-    return (
-      <CategoriesView
-        type={transactionType}
-        onBack={() => setShowCategories(false)}
-      />
-    );
-  }
+    if (showIncome) {
+      return (
+        <IncomeView
+          onBack={() => setShowIncome(false)}
+        />
+      );
+    }
 
-  return (
-    <View style={[styles.wrapper, { 
-      marginTop: -insets.top, 
-      marginBottom: -insets.bottom 
-    }]}>
-      <View style={styles.backgroundOverlay} />
+    if (showExpenses) {
+      return (
+        <ExpensesView
+          onBack={() => setShowExpenses(false)}
+        />
+      );
+    }
+
+    if (showCategories) {
+      return (
+        <CategoriesView
+          type={transactionType}
+          onBack={() => setShowCategories(false)}
+        />
+      );
+    }
+
+    return (
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 100 },
+          { paddingTop: insets.top + 30, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {/* Header with Logo centered and PRO badge */}
         <View style={styles.header}>
@@ -227,9 +252,15 @@ const MainView: React.FC = () => {
               resizeMode="contain"
             />
           </View>
-          <TouchableOpacity style={styles.proBadge}>
-            <Text style={styles.proCrown}>👑</Text>
-            <Text style={styles.proText}>PRO</Text>
+          <TouchableOpacity 
+            style={styles.proBadgeCircle}
+            onPress={() => setShowPremium(true)}
+          >
+            <Image 
+              source={require('../../../images/Attached_image.png')}
+              style={styles.proImage}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
         </View>
 
@@ -263,6 +294,8 @@ const MainView: React.FC = () => {
             keyboardType="numeric"
             placeholder="0Р"
             placeholderTextColor="#FFFFFF"
+            showSoftInputOnFocus={true}
+            returnKeyType="done"
           />
         </View>
 
@@ -345,7 +378,7 @@ const MainView: React.FC = () => {
           </View>
           <View style={styles.aiChatContent}>
             <Text style={styles.aiChatTitle}>
-              Чат с <Text style={[styles.aiChatTitleHighlight, { color: currentColor }]}>ИИ</Text>
+              <Text style={[styles.aiChatTitleHighlight, { color: currentColor }]}>RunaAi</Text>
             </Text>
             <Text style={styles.aiChatDescription}>
               Запросите совет или попросите проанализировать ваши расходы
@@ -358,65 +391,128 @@ const MainView: React.FC = () => {
           <Text style={styles.analyticsTitle}>Аналитика</Text>
           <TouchableOpacity 
             style={styles.detailsButton}
-            onPress={() => setShowExpenses(true)}
+            onPress={() => setShowAnalytics(true)}
           >
             <Text style={styles.detailsButtonText}>Детали</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+    );
+  };
+
+  return (
+    <View style={styles.wrapper}>
+      <View style={styles.backgroundOverlay} />
+      
+      {renderContent()}
 
       {/* Bottom Navigation - Island Style */}
-      <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom + 8 }]}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity style={[styles.navItem, styles.navItemCredit]}>
+      {!showChat && !showAnalytics && !showIncome && !showExpenses && !showCategories && !showPaymentMethod && (
+        <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.bottomNav}>
+          <TouchableOpacity 
+            style={[styles.navItem, styles.navItemCredit]}
+            onPress={() => handleNavigate('main')}
+            activeOpacity={1}
+          >
             <Image 
               source={require('../icon/home.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+              style={[
+                styles.navIconImage, 
+                styles.navIconImageCreditPosition,
+                (!showDepositsAndCredits && !showGoals && !showInvestments && !showProfile) ? {} : { opacity: 0.6 }
+              ]}
+              resizeMode="contain"
             />
-            <Text style={[styles.navLabel, styles.navLabelActive, styles.navLabelCreditPosition]}>Главная</Text>
+            <Text style={[
+              styles.navLabel, 
+              styles.navLabelCreditPosition,
+              (!showDepositsAndCredits && !showGoals && !showInvestments && !showProfile) ? styles.navLabelActive : {}
+            ]}>Главная</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.navItem, styles.navItemCredit, styles.navItemCreditDeposits]}
-            onPress={() => setShowDepositsAndCredits(true)}
+            onPress={() => handleNavigate('deposits')}
+            activeOpacity={1}
           >
             <Image 
               source={require('../icon/credit.png')} 
-              style={[styles.navIconImageCredit, styles.navIconImageCreditPositionDeposits]}
+              style={[
+                styles.navIconImageCredit, 
+                styles.navIconImageCreditPositionDeposits,
+                showDepositsAndCredits ? {} : { opacity: 0.6 }
+              ]}
+              resizeMode="contain"
             />
-            <Text style={[styles.navLabel, styles.navLabelCreditPositionDeposits]}>Вклады</Text>
+            <Text style={[
+              styles.navLabel, 
+              styles.navLabelCreditPositionDeposits,
+              showDepositsAndCredits ? styles.navLabelActive : {}
+            ]}>Вклады</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => setShowGoals(true)}
+            onPress={() => handleNavigate('goals')}
+            activeOpacity={1}
           >
             <Image 
               source={require('../icon/analiz.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+              style={[
+                styles.navIconImage, 
+                styles.navIconImageCreditPosition,
+                showGoals ? {} : { opacity: 0.6 }
+              ]}
+              resizeMode="contain"
             />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Цели</Text>
+            <Text style={[
+              styles.navLabel, 
+              styles.navLabelCreditPosition,
+              showGoals ? styles.navLabelActive : {}
+            ]}>Цели</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => setShowInvestments(true)}
+            onPress={() => handleNavigate('investments')}
+            activeOpacity={1}
           >
             <Image 
               source={require('../icon/invist.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+              style={[
+                styles.navIconImage, 
+                styles.navIconImageCreditPosition,
+                showInvestments ? {} : { opacity: 0.6 }
+              ]}
+              resizeMode="contain"
             />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Инвестиции</Text>
+            <Text style={[
+              styles.navLabel, 
+              styles.navLabelCreditPosition,
+              showInvestments ? styles.navLabelActive : {}
+            ]}>Инвестиции</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.navItem, styles.navItemCredit]}
-            onPress={() => setShowProfile(true)}
+            onPress={() => handleNavigate('profile')}
+            activeOpacity={1}
           >
             <Image 
               source={require('../icon/profile.png')} 
-              style={[styles.navIconImage, styles.navIconImageCreditPosition]}
+              style={[
+                styles.navIconImage, 
+                styles.navIconImageCreditPosition,
+                showProfile ? {} : { opacity: 0.6 }
+              ]}
+              resizeMode="contain"
             />
-            <Text style={[styles.navLabel, styles.navLabelCreditPosition]}>Профиль</Text>
+            <Text style={[
+              styles.navLabel, 
+              styles.navLabelCreditPosition,
+              showProfile ? styles.navLabelActive : {}
+            ]}>Профиль</Text>
           </TouchableOpacity>
         </View>
       </View>
+      )}
     </View>
   );
 };
@@ -446,7 +542,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
     position: 'relative',
     width: '100%',
   },
@@ -458,29 +554,24 @@ const styles = StyleSheet.create({
     width: 150,
     height: 60,
   },
-  proBadge: {
+  proBadgeCircle: {
     position: 'absolute',
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#1D4981',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 5,
   },
-  proCrown: {
-    fontSize: 16,
-    marginRight: 4,
-  },
-  proText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  proImage: {
+    width: '100%',
+    height: '100%',
   },
   summaryCards: {
     flexDirection: 'row',
@@ -766,6 +857,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
     paddingHorizontal: 16,
+    backgroundColor: 'transparent',
   },
   bottomNav: {
     flexDirection: 'row',
@@ -800,12 +892,14 @@ const styles = StyleSheet.create({
     height: 32,
     marginBottom: 4,
     tintColor: '#FFFFFF',
+    resizeMode: 'contain',
   },
   navIconImageCredit: {
     width: 36,
     height: 36,
     marginBottom: 4,
     tintColor: '#FFFFFF',
+    resizeMode: 'contain',
   },
   navIconImageCreditPosition: {
     marginTop: -2,
