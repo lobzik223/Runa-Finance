@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,10 +22,9 @@ const PaymentMethodView: React.FC<PaymentMethodViewProps> = ({ onBack, onSelect 
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
 
   const paymentMethods = [
-    { id: 'cash', name: 'Наличные деньги', icon: '💵' },
-    { id: 'debit', name: 'Дебетовая карта', icon: '💳' },
-    { id: 'credit', name: 'Кредитная карта', icon: '💳' },
-    { id: 'bank', name: 'Банковский перевод', icon: '🏦' },
+    { id: 'cash', name: 'Наличные деньги', icon: require('../../../images/icon/cash.png') },
+    { id: 'debit', name: 'Дебетовая карта', icon: require('../../../images/icon/debit.png') },
+    { id: 'credit', name: 'Кредитная карта', icon: require('../../../images/icon/creditkart.png') },
   ];
 
   const handleSelect = (methodId: string, methodName: string) => {
@@ -67,7 +67,7 @@ const PaymentMethodView: React.FC<PaymentMethodViewProps> = ({ onBack, onSelect 
             onPress={() => handleSelect(method.id, method.name)}
           >
             <View style={styles.methodLeft}>
-              <Text style={styles.methodIcon}>{method.icon}</Text>
+              <Image source={method.icon} style={styles.methodIconImage} resizeMode="contain" />
               <Text style={styles.methodText}>{method.name}</Text>
             </View>
             <Text style={styles.methodArrow}>→</Text>
@@ -150,6 +150,11 @@ const styles = StyleSheet.create({
   },
   methodIcon: {
     fontSize: 24,
+    marginRight: 12,
+  },
+  methodIconImage: {
+    width: 24,
+    height: 24,
     marginRight: 12,
   },
   methodText: {

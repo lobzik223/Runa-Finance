@@ -18,15 +18,17 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 interface DepositsAndCreditsViewProps {
   onBack?: () => void;
   onNavigate?: (screen: 'main' | 'deposits' | 'goals' | 'investments' | 'profile') => void;
+  initialTab?: 'credits' | 'deposits';
 }
 
-const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack, onNavigate }) => {
+const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack, onNavigate, initialTab = 'credits' }) => {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<'credits' | 'deposits'>('credits');
+  const [activeTab, setActiveTab] = useState<'credits' | 'deposits'>(initialTab);
   const [showCreditDetails, setShowCreditDetails] = useState(false);
   const [showAddCredit, setShowAddCredit] = useState(false);
   const [showAddDeposit, setShowAddDeposit] = useState(false);
   const [selectedCreditTitle, setSelectedCreditTitle] = useState('Кредит на телефон');
+  const [selectedDetailsMode, setSelectedDetailsMode] = useState<'credit' | 'deposit'>('credit');
 
   if (showAddDeposit) {
     return (
@@ -49,6 +51,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
       <CreditDetailsView
         onBack={() => setShowCreditDetails(false)}
         creditTitle={selectedCreditTitle}
+        mode={selectedDetailsMode}
       />
     );
   }
@@ -105,7 +108,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
               <View style={styles.notificationContent}>
                 <Text style={styles.notificationDate}>Завтра 30 ноября</Text>
                 <Text style={styles.notificationLabel}>По плану финансовое действие:</Text>
-                <Text style={styles.notificationAmount}>Платёж по кредиту 3 400Р</Text>
+                <Text style={styles.notificationAmount}>Платёж по кредиту 3 400₽</Text>
                 <Text style={styles.notificationSubtext}>Не пропусти. Дисциплина = свобода</Text>
               </View>
             </View>
@@ -123,7 +126,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
             
             <View style={styles.creditCard}>
               <Text style={styles.creditCardTitle}>Кредит на телефон</Text>
-              <Text style={styles.creditCardAmount}>50 000Р</Text>
+              <Text style={styles.creditCardAmount}>50 000₽</Text>
               
               {/* Progress Bar */}
               <View style={styles.progressBarContainer}>
@@ -133,11 +136,11 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
               <View style={styles.creditCardInfo}>
                 <View style={styles.creditCardInfoLeft}>
                   <Text style={styles.creditCardInfoLabel}>Следующий платеж:</Text>
-                  <Text style={styles.creditCardInfoValue}>3400Р</Text>
+                  <Text style={styles.creditCardInfoValue}>3 400₽</Text>
                 </View>
                 <View style={styles.creditCardInfoRight}>
                   <Text style={styles.creditCardInfoLabel}>Остаток:</Text>
-                  <Text style={styles.creditCardInfoValue}>38000Р</Text>
+                  <Text style={styles.creditCardInfoValue}>38 000₽</Text>
                 </View>
               </View>
               
@@ -145,6 +148,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
                 style={styles.detailsButton}
                 onPress={() => {
                   setSelectedCreditTitle('Кредит на телефон');
+                  setSelectedDetailsMode('credit');
                   setShowCreditDetails(true);
                 }}
               >
@@ -157,7 +161,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
             
             <View style={styles.creditCard}>
               <Text style={styles.creditCardTitle}>Кредитная карта Сбербанк</Text>
-              <Text style={styles.creditCardAmount}>50 000Р</Text>
+              <Text style={styles.creditCardAmount}>50 000₽</Text>
               
               {/* Progress Bar */}
               <View style={styles.progressBarContainer}>
@@ -167,11 +171,11 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
               <View style={styles.creditCardInfo}>
                 <View style={styles.creditCardInfoLeft}>
                   <Text style={styles.creditCardInfoLabel}>Следующий платеж:</Text>
-                  <Text style={styles.creditCardInfoValue}>3400Р</Text>
+                  <Text style={styles.creditCardInfoValue}>3 400₽</Text>
                 </View>
                 <View style={styles.creditCardInfoRight}>
                   <Text style={styles.creditCardInfoLabel}>Остаток:</Text>
-                  <Text style={styles.creditCardInfoValue}>38000Р</Text>
+                  <Text style={styles.creditCardInfoValue}>38 000₽</Text>
                 </View>
               </View>
               
@@ -179,6 +183,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
                 style={styles.detailsButton}
                 onPress={() => {
                   setSelectedCreditTitle('Кредитная карта Сбербанк');
+                  setSelectedDetailsMode('credit');
                   setShowCreditDetails(true);
                 }}
               >
@@ -198,7 +203,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
               <View style={styles.notificationContent}>
                 <Text style={styles.notificationDate}>Завтра 30 ноября</Text>
                 <Text style={styles.notificationLabel}>По плану финансовое действие:</Text>
-                <Text style={styles.notificationAmount}>Проценты по вкладу 5000Р</Text>
+                <Text style={styles.notificationAmount}>Проценты по вкладу 5 000₽</Text>
               </View>
             </View>
 
@@ -213,7 +218,7 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
             {/* Deposit Card */}
             <View style={styles.creditCard}>
               <Text style={styles.creditCardTitle}>Вклад "Накопительный"</Text>
-              <Text style={styles.creditCardAmount}>200 000 Р</Text>
+              <Text style={styles.creditCardAmount}>200 000₽</Text>
               
               <View style={styles.depositInfo}>
                 <Text style={styles.depositInfoLabel}>Начисление процентов:</Text>
@@ -222,13 +227,14 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
               
               <View style={styles.depositInfo}>
                 <Text style={styles.depositInfoLabel}>Ожидаемый доход:</Text>
-                <Text style={styles.depositInfoValue}>1190 Р</Text>
+                <Text style={styles.depositInfoValue}>1 190₽</Text>
               </View>
               
               <TouchableOpacity 
                 style={styles.detailsButton}
                 onPress={() => {
                   setSelectedCreditTitle('Вклад "Накопительный"');
+                  setSelectedDetailsMode('deposit');
                   setShowCreditDetails(true);
                 }}
               >

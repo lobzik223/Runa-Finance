@@ -8,16 +8,74 @@ import {
   Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, G } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const DONUT_TRACK_COLOR = '#A8C5E0';
+const DONUT_PROGRESS_COLOR = '#F4A460';
 
 interface AnalyticsViewProps {
   onBack: () => void;
 }
 
+type DonutChartProps = {
+  size: number;
+  strokeWidth: number;
+  /** 0..1 */
+  fraction: number;
+  trackColor: string;
+  progressColor: string;
+};
+
+const DonutChart: React.FC<DonutChartProps> = ({
+  size,
+  strokeWidth,
+  fraction,
+  trackColor,
+  progressColor,
+}) => {
+  const clamped = Math.max(0, Math.min(1, fraction));
+  const radius = (size - strokeWidth) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progressLen = circumference * clamped;
+
+  return (
+    <Svg width={size} height={size}>
+      {/* start at 12 o'clock */}
+      <G rotation={-90} origin={`${cx}, ${cy}`}>
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={radius}
+          stroke={trackColor}
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={radius}
+          stroke={progressColor}
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeLinecap="butt"
+          strokeDasharray={`${progressLen} ${Math.max(0, circumference - progressLen)}`}
+          strokeDashoffset={0}
+        />
+      </G>
+    </Svg>
+  );
+};
+
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
+
+  const expensePercent = 70;
+  const incomePercent = 30;
 
   return (
     <View style={styles.wrapper}>
@@ -39,19 +97,21 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
         {/* Top Summary Card with Chart */}
         <View style={styles.summaryCard}>
           <View style={styles.chartContainer}>
-            {/* Simulated Donut Chart */}
-            <View style={styles.donutBase}>
-              <View style={[styles.donutSegment, styles.segment1]} />
-              <View style={[styles.donutSegment, styles.segment2]} />
-              <View style={[styles.donutSegment, styles.segment3]} />
-              <View style={styles.donutHole} />
+            <View style={styles.donutWrap}>
+              <DonutChart
+                size={120}
+                strokeWidth={22}
+                fraction={incomePercent / 100}
+                trackColor={DONUT_TRACK_COLOR}
+                progressColor={DONUT_PROGRESS_COLOR}
+              />
             </View>
           </View>
           <View style={styles.summaryTextContainer}>
             <Text style={styles.summaryLabel}>Расходы</Text>
-            <Text style={styles.summaryPercent}>70%</Text>
+            <Text style={styles.summaryPercent}>{expensePercent}%</Text>
             <Text style={[styles.summaryLabel, styles.incomeLabel]}>Доходы</Text>
-            <Text style={[styles.summaryPercent, styles.incomePercent]}>30%</Text>
+            <Text style={[styles.summaryPercent, styles.incomePercent]}>{incomePercent}%</Text>
           </View>
         </View>
 
@@ -85,7 +145,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBar, { width: '35%', backgroundColor: '#8B4513' }]} />
           </View>
-          <Text style={styles.amountText}>12 500Р</Text>
+          <Text style={styles.amountText}>12 500₽</Text>
         </View>
 
         <View style={styles.categoryCard}>
@@ -96,7 +156,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBar, { width: '55%', backgroundColor: '#1D4981' }]} />
           </View>
-          <Text style={styles.amountText}>20 000Р</Text>
+          <Text style={styles.amountText}>20 000₽</Text>
         </View>
 
         <View style={styles.categoryCard}>
@@ -107,7 +167,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBar, { width: '10%', backgroundColor: '#FDEBD0' }]} />
           </View>
-          <Text style={styles.amountText}>5 000Р</Text>
+          <Text style={styles.amountText}>5 000₽</Text>
         </View>
 
       </ScrollView>
@@ -178,41 +238,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  donutBase: {
+  donutWrap: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#A8C5E0', 
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  donutSegment: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  segment1: {
-    backgroundColor: '#F4A460', 
-    width: '50%',
-    height: '50%',
-    top: 0,
-    left: 50,
-  },
-  segment2: {
-    backgroundColor: '#FDEBD0', 
-    width: '50%',
-    height: '50%',
-    bottom: 0,
-    left: 50,
-  },
-  donutHole: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#1D4981',
-    top: 30,
-    left: 30,
+  },
+  donutTrack: {
+    stroke: DONUT_TRACK_COLOR,
+  },
+  donutProgress: {
+    stroke: DONUT_PROGRESS_COLOR,
   },
   summaryTextContainer: {
     marginLeft: 24,

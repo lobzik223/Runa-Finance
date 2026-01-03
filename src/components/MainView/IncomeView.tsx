@@ -33,7 +33,7 @@ const IncomeView: React.FC<IncomeViewProps> = ({ onBack }) => {
       category: 'Зарплата',
       icon: '💼',
       amount: '+50 000₽',
-      paymentMethod: 'Банковский перевод',
+      paymentMethod: 'Дебетовая карта',
       date: '22.12.2025',
     },
     {
@@ -41,7 +41,7 @@ const IncomeView: React.FC<IncomeViewProps> = ({ onBack }) => {
       category: 'Фриланс',
       icon: '💻',
       amount: '+10 000₽',
-      paymentMethod: 'Дебетовая карта',
+      paymentMethod: 'Кредитная карта',
       date: '20.12.2025',
     },
     {
@@ -49,7 +49,7 @@ const IncomeView: React.FC<IncomeViewProps> = ({ onBack }) => {
       category: 'Премия',
       icon: '🎁',
       amount: '+5 000₽',
-      paymentMethod: 'Банковский перевод',
+      paymentMethod: 'Наличные деньги',
       date: '15.12.2025',
     },
   ];
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   summaryAmount: {
     fontSize: 48,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1D4981',
     marginBottom: 8,
   },
   summarySubtitle: {

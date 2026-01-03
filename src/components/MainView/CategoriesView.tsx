@@ -44,19 +44,19 @@ const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
   ];
 
   const expenseCategories = [
-    { id: 'groceries', name: 'Продукты', icon: '🛍️' },
-    { id: 'cafe', name: 'Кафе и рестораны', icon: '🍴' },
-    { id: 'transport', name: 'Транспорт', icon: '🚗' },
-    { id: 'housing', name: 'Жильё и коммуналка', icon: '⚡' },
-    { id: 'communication', name: 'Связь и подписки', icon: '📞' },
-    { id: 'shopping', name: 'Покупки и вещи', icon: '🛒' },
-    { id: 'health', name: 'Здоровье', icon: '❤️' },
-    { id: 'sport', name: 'Спорт', icon: '🏋️' },
-    { id: 'education', name: 'Образование', icon: '📚' },
-    { id: 'travel', name: 'Путешествия', icon: '✈️' },
-    { id: 'gifts', name: 'Подарки', icon: '🎁' },
-    { id: 'home', name: 'Дом и быт', icon: '🏠' },
-    { id: 'entertainment', name: 'Развлечения', icon: '🎂' },
+    { id: 'groceries', name: 'Продукты', icon: require('../../../images/icon/produckt.png') },
+    { id: 'cafe', name: 'Кафе и рестораны', icon: require('../../../images/icon/cafe-restoraunt.png') },
+    { id: 'transport', name: 'Транспорт', icon: require('../../../images/icon/car.png') },
+    { id: 'housing', name: 'Жилье и комуналка', icon: require('../../../images/icon/komunalka.png') },
+    { id: 'communication', name: 'Связь и подписки', icon: require('../../../images/icon/subb.png') },
+    { id: 'shopping', name: 'Покупки вещи', icon: require('../../../images/icon/pokup.png') },
+    { id: 'health', name: 'Здоровье', icon: require('../../../images/icon/healt.png') },
+    { id: 'sport', name: 'Спорт', icon: require('../../../images/icon/sport.png') },
+    { id: 'education', name: 'Образование', icon: require('../../../images/icon/book.png') },
+    { id: 'travel', name: 'Путишествие', icon: require('../../../images/icon/airplane.png') },
+    { id: 'gifts', name: 'Подарки', icon: require('../../../images/icon/hediye.png') },
+    { id: 'home', name: 'Дом и быт', icon: require('../../../images/icon/homee.png') },
+    { id: 'entertainment', name: 'Развлечения', icon: require('../../../images/icon/razvlich.png') },
   ];
 
   const categories = type === 'income' ? incomeCategories : expenseCategories;

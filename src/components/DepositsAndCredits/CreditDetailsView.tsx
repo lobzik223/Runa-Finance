@@ -15,13 +15,16 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 interface CreditDetailsViewProps {
   onBack?: () => void;
   creditTitle?: string;
+  mode?: 'credit' | 'deposit';
 }
 
 const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({ 
   onBack,
-  creditTitle = 'Кредит на телефон'
+  creditTitle = 'Кредит на телефон',
+  mode,
 }) => {
   const insets = useSafeAreaInsets();
+  const isDeposit = mode === 'deposit' || creditTitle.toLowerCase().includes('вклад');
 
   return (
     <View style={styles.wrapper}>
@@ -49,20 +52,20 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
         {/* Credit Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Сумма кредита:</Text>
-            <Text style={styles.summaryValue}>50 000 Р</Text>
+            <Text style={styles.summaryLabel}>{isDeposit ? 'Сумма вклада:' : 'Сумма кредита:'}</Text>
+            <Text style={styles.summaryValue}>{isDeposit ? '200 000₽' : '50 000₽'}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Остаток долга:</Text>
-            <Text style={styles.summaryValue}>38 000 Р</Text>
+            <Text style={styles.summaryLabel}>{isDeposit ? 'Ожидаемый доход:' : 'Остаток долга:'}</Text>
+            <Text style={styles.summaryValue}>{isDeposit ? '1 190₽' : '38 000₽'}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Следующий платеж:</Text>
-            <Text style={styles.summaryValue}>3 400 Р</Text>
+            <Text style={styles.summaryLabel}>{isDeposit ? 'Начисление процентов:' : 'Следующий платеж:'}</Text>
+            <Text style={styles.summaryValue}>{isDeposit ? '15 марта' : '3 400₽'}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Дата платежа:</Text>
-            <Text style={styles.summaryValue}>30 ноября</Text>
+            <Text style={styles.summaryLabel}>{isDeposit ? 'Срок:' : 'Дата платежа:'}</Text>
+            <Text style={styles.summaryValue}>{isDeposit ? '12 месяцев' : '30 ноября'}</Text>
           </View>
           <View style={[styles.summaryRow, styles.summaryRowLast]}>
             <Text style={styles.summaryLabel}>Процентная ставка:</Text>
@@ -71,14 +74,14 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
         </View>
 
         {/* Payment Schedule Section */}
-        <Text style={styles.sectionTitle}>График платежей</Text>
+        <Text style={styles.sectionTitle}>{isDeposit ? 'График начислений' : 'График платежей'}</Text>
         
         <View style={styles.paymentItem}>
           <View style={styles.paymentIconContainer}>
             <Text style={styles.paymentIcon}>✓</Text>
           </View>
           <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>Сентябрь — 3 400 Р</Text>
+            <Text style={styles.paymentMonth}>{isDeposit ? 'Сентябрь — 1 190₽' : 'Сентябрь — 3 400₽'}</Text>
           </View>
           <Text style={styles.paymentStatusPaid}>Оплачено</Text>
         </View>
@@ -88,7 +91,7 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
             <Text style={styles.paymentIcon}>✓</Text>
           </View>
           <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>Октябрь — 3 400 Р</Text>
+            <Text style={styles.paymentMonth}>{isDeposit ? 'Октябрь — 1 190₽' : 'Октябрь — 3 400₽'}</Text>
           </View>
           <Text style={styles.paymentStatusPaid}>Оплачено</Text>
         </View>
@@ -98,7 +101,7 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
             <View style={styles.paymentIconPending} />
           </View>
           <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>Ноябрь — 3 400 Р</Text>
+            <Text style={styles.paymentMonth}>{isDeposit ? 'Ноябрь — 1 190₽' : 'Ноябрь — 3 400₽'}</Text>
           </View>
           <Text style={styles.paymentStatusPending}>Ожидается</Text>
         </View>
@@ -109,7 +112,7 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.closeButton}>
-          <Text style={styles.closeButtonText}>Закрыть кредит</Text>
+          <Text style={styles.closeButtonText}>{isDeposit ? 'Закрыть вклад' : 'Закрыть кредит'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

@@ -35,12 +35,13 @@ const MainView: React.FC = () => {
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showDepositsAndCredits, setShowDepositsAndCredits] = useState(false);
+  const [depositsInitialTab, setDepositsInitialTab] = useState<'credits' | 'deposits'>('deposits');
   const [showGoals, setShowGoals] = useState(false);
   const [showInvestments, setShowInvestments] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Карта');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Дебетовая карта');
   
   // Анимация плавного перелива цвета для "ИИ"
   const colorAnim = useRef(new Animated.Value(0)).current;
@@ -119,6 +120,7 @@ const MainView: React.FC = () => {
     
     switch (screen) {
       case 'deposits':
+        setDepositsInitialTab('deposits');
         setShowDepositsAndCredits(true);
         break;
       case 'goals':
@@ -170,6 +172,7 @@ const MainView: React.FC = () => {
         <DepositsAndCreditsView
           onBack={() => setShowDepositsAndCredits(false)}
           onNavigate={handleNavigate}
+          initialTab={depositsInitialTab}
         />
       );
     }
@@ -272,7 +275,7 @@ const MainView: React.FC = () => {
           >
             <Text style={styles.summaryTitle}>Доходы</Text>
             <Text style={styles.summarySubtitle}>за месяц</Text>
-            <Text style={styles.summaryAmount}>65 000 Р</Text>
+            <Text style={styles.summaryAmount}>65 000₽</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.summaryCard, styles.summaryCardRight]}
@@ -280,7 +283,7 @@ const MainView: React.FC = () => {
           >
             <Text style={styles.summaryTitle}>Расходы</Text>
             <Text style={styles.summarySubtitle}>за месяц</Text>
-            <Text style={[styles.summaryAmount, styles.expenseAmount]}>-20 000Р</Text>
+            <Text style={[styles.summaryAmount, styles.expenseAmount]}>-20 000₽</Text>
           </TouchableOpacity>
         </View>
 
@@ -292,7 +295,7 @@ const MainView: React.FC = () => {
             value={amount}
             onChangeText={setAmount}
             keyboardType="numeric"
-            placeholder="0Р"
+            placeholder="0₽"
             placeholderTextColor="#FFFFFF"
             showSoftInputOnFocus={true}
             returnKeyType="done"
@@ -378,7 +381,7 @@ const MainView: React.FC = () => {
           </View>
           <View style={styles.aiChatContent}>
             <Text style={styles.aiChatTitle}>
-              <Text style={[styles.aiChatTitleHighlight, { color: currentColor }]}>RunaAi</Text>
+              <Text style={[styles.aiChatTitleHighlight, { color: currentColor }]}>RUNA AI </Text>
             </Text>
             <Text style={styles.aiChatDescription}>
               Запросите совет или попросите проанализировать ваши расходы

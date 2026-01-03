@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
+  Alert,
+  Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -17,6 +20,53 @@ interface ReferralViewProps {
 
 const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
+  const promoCode = 'RUNA7VK4';
+  const [inviteUsed, setInviteUsed] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const v = await AsyncStorage.getItem('referral_invite_used');
+        setInviteUsed(v === 'true');
+      } catch {
+        // ignore
+      }
+    };
+    void load();
+  }, []);
+
+  const markInviteUsed = async () => {
+    try {
+      await AsyncStorage.setItem('referral_invite_used', 'true');
+    } catch {
+      // ignore
+    }
+    setInviteUsed(true);
+  };
+
+  const handleCopy = async () => {
+    if (inviteUsed) {
+      Alert.alert('Рефералка', 'Вы уже приглашали друга. Бонус выдаётся только один раз.');
+      return;
+    }
+
+    // В демо-проекте без буфера обмена: предлагаем поделиться кодом,
+    // и помечаем приглашение как использованное.
+    await Share.share({ message: `Мой промокод: ${promoCode}` });
+    await markInviteUsed();
+    Alert.alert('Готово', 'Промокод отправлен. Бонус можно получить только один раз.');
+  };
+
+  const handleShare = async () => {
+    if (inviteUsed) {
+      Alert.alert('Рефералка', 'Вы уже приглашали друга. Бонус выдаётся только один раз.');
+      return;
+    }
+
+    await Share.share({ message: `Мой промокод: ${promoCode}` });
+    await markInviteUsed();
+    Alert.alert('Готово', 'Промокод отправлен. Бонус можно получить только один раз.');
+  };
 
   return (
     <View style={styles.wrapper}>
@@ -37,19 +87,19 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
       >
         {/* Promo Code Card */}
         <View style={styles.promoCard}>
-          <Text style={styles.promoCode}>RUNA7VK4</Text>
+          <Text style={styles.promoCode}>{promoCode}</Text>
           <View style={styles.promoButtons}>
-            <TouchableOpacity style={styles.copyButton}>
-              <Text style={styles.buttonText}>Скопировать код</Text>
+            <TouchableOpacity style={[styles.copyButton, inviteUsed && styles.buttonDisabled]} onPress={handleCopy}>
+              <Text style={styles.buttonText}>{inviteUsed ? 'Уже использовано' : 'Скопировать код'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.shareButton}>
-              <Text style={styles.buttonText}>Поделиться</Text>
+            <TouchableOpacity style={[styles.shareButton, inviteUsed && styles.buttonDisabled]} onPress={handleShare}>
+              <Text style={styles.buttonText}>{inviteUsed ? 'Уже использовано' : 'Поделиться'}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <Text style={styles.promoDescription}>
-          Вы и ваш друг получите 7 дней RUNA Premium, если он введёт ваш промокод при регистрации.
+          Вы и ваш друг получите 7 дней RUNA Premium один раз — при первом приглашении и первой активации.
         </Text>
 
         {/* How it works Card */}
@@ -64,7 +114,7 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
             <Text style={styles.bulletText}>
-              Если пользователь регистрируется без промокода, он получает 3 дня бесплатного периода.
+              Бонус по приглашению можно получить только один раз (и пригласившему, и приглашённому).
             </Text>
           </View>
         </View>
@@ -72,7 +122,7 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
         {/* What user gets Card */}
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>Что получает пользователь</Text>
-          <Text style={styles.subInfoText}>За каждого приглашённого:</Text>
+          <Text style={styles.subInfoText}>Один раз:</Text>
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
             <Text style={styles.bulletText}>+7 дней Premium пользователю</Text>
@@ -83,7 +133,7 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
           </View>
           <Text style={styles.exampleTitle}>Пример:</Text>
           <Text style={styles.exampleText}>
-            Пригласили 3 друзей → получили 21 день Premium бесплатно.
+            Пригласили 1 друга → получили 7 дней Premium бесплатно.
           </Text>
         </View>
       </ScrollView>
@@ -171,6 +221,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.55,
   },
   buttonText: {
     color: '#FFFFFF',
