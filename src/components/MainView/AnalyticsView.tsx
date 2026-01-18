@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, G } from 'react-native-svg';
+import { apiService, type TransactionsAnalyticsResponse } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -73,9 +75,48 @@ const DonutChart: React.FC<DonutChartProps> = ({
 const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
+  const [analytics, setAnalytics] = useState<TransactionsAnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const expensePercent = 70;
-  const incomePercent = 30;
+  const timezoneName = useMemo(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tz = (Intl as any)?.DateTimeFormat?.().resolvedOptions?.().timeZone;
+      return tz || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    void (async () => {
+      try {
+        const res = await apiService.getTransactionsAnalytics({ timezone: timezoneName });
+        if (alive) setAnalytics(res);
+      } catch {
+        if (alive) {
+          setAnalytics({
+            period: { from: new Date().toISOString(), to: new Date().toISOString(), timezone: timezoneName },
+            totals: { income: 0, expense: 0, total: 0 },
+            donutChart: { incomePercent: 0, expensePercent: 0 },
+            breakdown: { income: [], expense: [] },
+          });
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [timezoneName]);
+
+  const expensePercent = analytics?.donutChart.expensePercent || 0;
+  const incomePercent = analytics?.donutChart.incomePercent || 0;
+
+  const breakdown = activeTab === 'expense' ? analytics?.breakdown.expense || [] : analytics?.breakdown.income || [];
 
   return (
     <View style={styles.wrapper}>
@@ -98,13 +139,17 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
         <View style={styles.summaryCard}>
           <View style={styles.chartContainer}>
             <View style={styles.donutWrap}>
-              <DonutChart
-                size={120}
-                strokeWidth={22}
-                fraction={incomePercent / 100}
-                trackColor={DONUT_TRACK_COLOR}
-                progressColor={DONUT_PROGRESS_COLOR}
-              />
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <DonutChart
+                  size={120}
+                  strokeWidth={22}
+                  fraction={incomePercent / 100}
+                  trackColor={DONUT_TRACK_COLOR}
+                  progressColor={DONUT_PROGRESS_COLOR}
+                />
+              )}
             </View>
           </View>
           <View style={styles.summaryTextContainer}>
@@ -133,42 +178,31 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
 
         {/* Current Selection Percent */}
         <View style={styles.selectionPercentBadge}>
-          <Text style={styles.selectionPercentText}>70%</Text>
+          <Text style={styles.selectionPercentText}>
+            {activeTab === 'expense' ? `${expensePercent}%` : `${incomePercent}%`}
+          </Text>
         </View>
 
         {/* Categories Progress List */}
-        <View style={styles.categoryCard}>
-          <View style={styles.categoryHeader}>
-            <Text style={[styles.categoryTitle, { color: '#8B4513' }]}>Аренда жилья</Text>
-            <Text style={styles.categoryPercent}>35%</Text>
+        {!loading && breakdown.length === 0 ? (
+          <View style={styles.categoryCard}>
+            <Text style={styles.categoryTitle}>Нет данных</Text>
+            <Text style={styles.amountText}>0₽</Text>
           </View>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: '35%', backgroundColor: '#8B4513' }]} />
-          </View>
-          <Text style={styles.amountText}>12 500₽</Text>
-        </View>
-
-        <View style={styles.categoryCard}>
-          <View style={styles.categoryHeader}>
-            <Text style={[styles.categoryTitle, { color: '#1D4981' }]}>Продукты</Text>
-            <Text style={styles.categoryPercent}>55%</Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: '55%', backgroundColor: '#1D4981' }]} />
-          </View>
-          <Text style={styles.amountText}>20 000₽</Text>
-        </View>
-
-        <View style={styles.categoryCard}>
-          <View style={styles.categoryHeader}>
-            <Text style={[styles.categoryTitle, { color: '#000000' }]}>Ремонт</Text>
-            <Text style={styles.categoryPercent}>10%</Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: '10%', backgroundColor: '#FDEBD0' }]} />
-          </View>
-          <Text style={styles.amountText}>5 000₽</Text>
-        </View>
+        ) : (
+          breakdown.slice(0, 10).map((row) => (
+            <View key={`${activeTab}-${row.categoryId}`} style={styles.categoryCard}>
+              <View style={styles.categoryHeader}>
+                <Text style={[styles.categoryTitle, { color: '#1D4981' }]}>{row.categoryName}</Text>
+                <Text style={styles.categoryPercent}>{Math.round(row.percent)}%</Text>
+              </View>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { width: `${Math.min(100, Math.max(0, row.percent))}%`, backgroundColor: '#1D4981' }]} />
+              </View>
+              <Text style={styles.amountText}>{Math.round(row.amount).toLocaleString('ru-RU')}₽</Text>
+            </View>
+          ))
+        )}
 
       </ScrollView>
     </View>

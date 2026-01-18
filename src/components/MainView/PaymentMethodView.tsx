@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,30 +7,55 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService, type PaymentMethod } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface PaymentMethodViewProps {
   onBack: () => void;
-  onSelect?: (method: string) => void;
+  onSelect?: (method: { id: number; name: string }) => void;
 }
 
 const PaymentMethodView: React.FC<PaymentMethodViewProps> = ({ onBack, onSelect }) => {
   const insets = useSafeAreaInsets();
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [selectedMethodId, setSelectedMethodId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
 
-  const paymentMethods = [
-    { id: 'cash', name: 'Наличные деньги', icon: require('../../../images/icon/cash.png') },
-    { id: 'debit', name: 'Дебетовая карта', icon: require('../../../images/icon/debit.png') },
-    { id: 'credit', name: 'Кредитная карта', icon: require('../../../images/icon/creditkart.png') },
-  ];
+  const iconByKey: Record<string, any> = useMemo(
+    () => ({
+      cash: require('../../../images/icon/cash.png'),
+      debit: require('../../../images/icon/debit.png'),
+      credit: require('../../../images/icon/creditkart.png'),
+    }),
+    [],
+  );
 
-  const handleSelect = (methodId: string, methodName: string) => {
-    setSelectedMethod(methodId);
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    void (async () => {
+      try {
+        const res = await apiService.listPaymentMethods();
+        if (alive) setPaymentMethods(res);
+      } catch {
+        if (alive) setPaymentMethods([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleSelect = (methodId: number, methodName: string) => {
+    setSelectedMethodId(methodId);
     if (onSelect) {
-      onSelect(methodName);
+      onSelect({ id: methodId, name: methodName });
     }
     // Автоматически возвращаемся назад после выбора
     setTimeout(() => {
@@ -57,22 +82,36 @@ const PaymentMethodView: React.FC<PaymentMethodViewProps> = ({ onBack, onSelect 
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        {paymentMethods.map((method) => (
+        {loading ? (
+          <View style={{ paddingTop: 40, alignItems: 'center' }}>
+            <ActivityIndicator />
+          </View>
+        ) : paymentMethods.length === 0 ? (
+          <View style={{ paddingTop: 40, alignItems: 'center' }}>
+            <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Способы оплаты не найдены</Text>
+          </View>
+        ) : (
+          paymentMethods.map((method) => (
           <TouchableOpacity
             key={method.id}
             style={[
               styles.methodItem,
-              selectedMethod === method.id && styles.methodItemSelected
+              selectedMethodId === method.id && styles.methodItemSelected
             ]}
             onPress={() => handleSelect(method.id, method.name)}
           >
             <View style={styles.methodLeft}>
-              <Image source={method.icon} style={styles.methodIconImage} resizeMode="contain" />
+              <Image
+                source={(method.iconKey && iconByKey[method.iconKey]) || require('../../../images/icon/debit.png')}
+                style={styles.methodIconImage}
+                resizeMode="contain"
+              />
               <Text style={styles.methodText}>{method.name}</Text>
             </View>
             <Text style={styles.methodArrow}>→</Text>
           </TouchableOpacity>
-        ))}
+        ))
+        )}
       </ScrollView>
     </View>
   );

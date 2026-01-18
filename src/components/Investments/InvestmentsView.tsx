@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,12 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
-  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddStockView from './AddStockView';
 import AssetDetailsView from './AssetDetailsView';
+import { apiService, type InvestmentsPortfolioResponse, type MarketNewsItem } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -23,13 +24,48 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
   const insets = useSafeAreaInsets();
   const [showAddStock, setShowAddStock] = useState(false);
   const [showAssetDetails, setShowAssetDetails] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<string>('');
+  const [selectedAssetId, setSelectedAssetId] = useState<number>(0);
+  const [selectedAssetName, setSelectedAssetName] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [portfolio, setPortfolio] = useState<InvestmentsPortfolioResponse | null>(null);
+  const [news, setNews] = useState<MarketNewsItem[]>([]);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [p, n] = await Promise.all([
+        apiService.getInvestmentsPortfolio(),
+        apiService.getMarketNews(10),
+      ]);
+      setPortfolio(p);
+      setNews(n);
+    } catch {
+      setPortfolio({ assets: [], totalCost: 0, totalCurrentValue: null, totalPnlValue: null, totalPnlPercent: null });
+      setNews([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const assets = useMemo(() => portfolio?.assets ?? [], [portfolio]);
 
   if (showAssetDetails) {
     return (
       <AssetDetailsView
-        onBack={() => setShowAssetDetails(false)}
-        assetName={selectedAsset}
+        onBack={async (deleted) => {
+          setShowAssetDetails(false);
+          if (deleted) {
+            await reload();
+          }
+        }}
+        assetId={selectedAssetId}
+        assetName={selectedAssetName}
       />
     );
   }
@@ -37,25 +73,15 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
   if (showAddStock) {
     return (
       <AddStockView
-        onBack={() => setShowAddStock(false)}
+        onBack={async (updated) => {
+          setShowAddStock(false);
+          if (updated) {
+            await reload();
+          }
+        }}
       />
     );
   }
-
-  // Graph data points (values in range 0-2000)
-  const graphData = [
-    { month: 'Apr', value: 200 },
-    { month: 'May', value: 600 },
-    { month: 'Jun', value: 1000 },
-    { month: 'Jul', value: 800 },
-    { month: 'Aug', value: 1400 },
-    { month: 'Sep', value: 1800 },
-  ];
-
-  const graphHeight = 180;
-  const graphWidth = SCREEN_WIDTH - 100;
-  const maxY = 2000;
-  const yAxisValues = [0, 400, 800, 1000, 1700, 2000];
 
   return (
     <View style={styles.wrapper}>
@@ -76,124 +102,81 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Investment Graph Card */}
-        <View style={styles.graphCard}>
-          <View style={styles.graphContainer}>
-            {/* Y-axis labels */}
-            <View style={styles.yAxisLabels}>
-              <Text style={styles.yAxisLabel}>2000</Text>
-              <Text style={styles.yAxisLabel}>1700</Text>
-              <Text style={styles.yAxisLabel}>1000</Text>
-              <Text style={styles.yAxisLabel}>800</Text>
-              <Text style={styles.yAxisLabel}>400</Text>
-              <Text style={styles.yAxisLabel}>0</Text>
+        {/* Info Section */}
+        <View style={styles.infoCard}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <Text style={{ color: '#666', fontSize: 13, marginBottom: 4 }}>
+                Доступный баланс
+              </Text>
+              <Text style={{ color: '#1D4981', fontSize: 24, fontWeight: '700' }}>
+                {(100000 - (portfolio?.totalCost || 0)).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+              </Text>
             </View>
-            
-            {/* Graph area */}
-            <View style={styles.graphArea}>
-              {/* Grid lines */}
-              {yAxisValues.map((value) => {
-                const yPosition = graphHeight - (value / maxY) * graphHeight;
-                return (
-                  <View
-                    key={value}
-                    style={[
-                      styles.gridLine,
-                      {
-                        top: yPosition,
-                      },
-                    ]}
-                  />
-                );
-              })}
-              
-              {/* Graph line */}
-              <View style={styles.graphLineContainer}>
-                {graphData.map((data, index) => {
-                  if (index === 0) return null;
-                  const prevData = graphData[index - 1];
-                  const x1 = ((index - 1) / 5) * graphWidth;
-                  const y1 = graphHeight - (prevData.value / maxY) * graphHeight;
-                  const x2 = (index / 5) * graphWidth;
-                  const y2 = graphHeight - (data.value / maxY) * graphHeight;
-                  
-                  const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-                  const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
-                  
-                  return (
-                    <View
-                      key={index}
-                      style={[
-                        styles.graphLineSegment,
-                        {
-                          left: x1,
-                          top: y1,
-                          width: length,
-                          transform: [{ rotate: `${angle}deg` }],
-                        },
-                      ]}
-                    />
-                  );
-                })}
-                
-                {/* Graph points */}
-                {graphData.map((data, index) => {
-                  const x = (index / 5) * graphWidth;
-                  const y = graphHeight - (data.value / maxY) * graphHeight;
-                  return (
-                    <View
-                      key={index}
-                      style={[
-                        styles.graphPoint,
-                        {
-                          left: x - 4,
-                          top: y - 4,
-                        },
-                      ]}
-                    />
-                  );
-                })}
-              </View>
-              
-              {/* X-axis labels */}
-              <View style={styles.xAxisLabels}>
-                {graphData.map((data) => (
-                  <Text key={data.month} style={styles.xAxisLabel}>
-                    {data.month}
-                  </Text>
-                ))}
-              </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ color: '#666', fontSize: 13, marginBottom: 4 }}>
+                Вложено
+              </Text>
+              <Text style={{ color: '#A0522D', fontSize: 20, fontWeight: '700' }}>
+                {(portfolio?.totalCost || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Investment Performance Cards */}
-        <View style={styles.investmentCards}>
-          {/* Yandex Card */}
-          <TouchableOpacity 
-            style={styles.investmentCard}
-            onPress={() => {
-              setSelectedAsset('Яндекс');
-              setShowAssetDetails(true);
-            }}
-          >
-            <Text style={styles.investmentName}>Яндекс</Text>
-            <Text style={styles.investmentAmount}>150 000₽</Text>
-            <Text style={styles.investmentChangePositive}>+ 4 250₽ (2,84%)</Text>
-          </TouchableOpacity>
-
-          {/* Sberbank Card */}
-          <TouchableOpacity 
-            style={styles.investmentCard}
-            onPress={() => {
-              setSelectedAsset('Сбербанк');
-              setShowAssetDetails(true);
-            }}
-          >
-            <Text style={styles.investmentName}>Сбербанк</Text>
-            <Text style={styles.investmentAmount}>150 000₽</Text>
-            <Text style={styles.investmentChangeNegative}>- 1 500₽ (0,75%)</Text>
-          </TouchableOpacity>
+        {/* Portfolio Summary */}
+        <View style={styles.graphCard}>
+          <Text style={styles.newsSectionTitle}>Мои инвестиции</Text>
+          {loading ? (
+            <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+              <ActivityIndicator />
+            </View>
+          ) : assets.length === 0 ? (
+            <Text style={{ color: '#666', fontSize: 14, lineHeight: 20 }}>
+              Пока нет активов. Нажмите "Добавить акцию" чтобы начать инвестировать
+            </Text>
+          ) : (
+            <>
+              {assets.map((a) => {
+                const pnl = a.pnlValue ?? 0;
+                const pct = a.totalCost > 0 && a.currentValue !== null ? (pnl / a.totalCost) * 100 : null;
+                const positive = pnl >= 0;
+                return (
+                  <TouchableOpacity
+                    key={a.assetId}
+                    style={styles.investmentCard}
+                    onPress={() => {
+                      setSelectedAssetId(a.assetId);
+                      setSelectedAssetName(a.name);
+                      setShowAssetDetails(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.investmentName}>{a.name}</Text>
+                        <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                          {a.symbol}
+                        </Text>
+                      </View>
+                      <Text style={[styles.investmentAmount, { textAlign: 'right' }]}>
+                        {(a.currentValue || a.totalCost).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 12, color: '#666' }}>
+                        Вложено: {a.totalCost.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+                      </Text>
+                      <Text style={positive ? styles.investmentChangePositive : styles.investmentChangeNegative}>
+                        {positive ? '+' : ''}
+                        {Math.round(pnl).toLocaleString('ru-RU')} ₽
+                        {pct !== null ? ` (${positive ? '+' : ''}${pct.toFixed(2)}%)` : ''}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
         </View>
 
         {/* Add Stock Button */}
@@ -207,20 +190,17 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
         {/* Stock Market News Section */}
         <View style={styles.newsSection}>
           <Text style={styles.newsSectionTitle}>Новости фондового рынка</Text>
-          
-          {/* News Card 1 */}
-          <View style={styles.newsCard}>
-            <Text style={styles.newsText}>
-              Росстат сообщил об историческом росте индекса
-            </Text>
-          </View>
-
-          {/* News Card 2 */}
-          <View style={styles.newsCard}>
-            <Text style={styles.newsText}>
-              Банк России опубликовал прогноз ключевой ставки...
-            </Text>
-          </View>
+          {news.length === 0 ? (
+            <View style={styles.newsCard}>
+              <Text style={styles.newsText}>Пока нет новостей</Text>
+            </View>
+          ) : (
+            news.map((n) => (
+              <View key={n.id} style={styles.newsCard}>
+                <Text style={styles.newsText}>{n.title}</Text>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </View>
@@ -230,7 +210,7 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: '#788FAC',
+    backgroundColor: '#7792B8',
   },
   backgroundOverlay: {
     position: 'absolute',
@@ -238,7 +218,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT * 2,
-    backgroundColor: '#788FAC',
+    backgroundColor: '#7792B8',
     zIndex: 0,
   },
   header: {
@@ -346,10 +326,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   investmentCard: {
-    flex: 1,
     backgroundColor: '#E8E0D4',
     borderRadius: 16,
     padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -394,6 +374,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  infoCard: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
   },
   newsSection: {
     marginBottom: 20,

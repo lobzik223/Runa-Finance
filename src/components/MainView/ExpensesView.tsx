@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,12 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
+  Image,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService, type Transaction, type Category } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -15,52 +19,83 @@ interface ExpensesViewProps {
   onBack?: () => void;
 }
 
-interface Transaction {
-  id: string;
-  category: string;
-  icon: string;
-  amount: string;
-  paymentMethod: string;
-  date: string;
-}
-
 const ExpensesView: React.FC<ExpensesViewProps> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  const transactions: Transaction[] = [
-    {
-      id: '1',
-      category: 'Косметика',
-      icon: '🛍️',
-      amount: '-5 000₽',
-      paymentMethod: 'Наличные деньги',
-      date: '22.12.2025',
-    },
-    {
-      id: '2',
-      category: 'Бензин',
-      icon: '🚗',
-      amount: '-1 530₽',
-      paymentMethod: 'Дебетовая карта',
-      date: '22.12.2025',
-    },
-    {
-      id: '3',
-      category: 'Ремонт',
-      icon: '🏠',
-      amount: '-13 000₽',
-      paymentMethod: 'Кредитная карта',
-      date: '22.12.2025',
-    },
-    {
-      id: '4',
-      category: 'Мобильная связь',
-      icon: '📞',
-      amount: '-470₽',
-      paymentMethod: 'Дебетовая карта',
-      date: '22.12.2025',
-    },
-  ];
+  const iconByKey: Record<string, any> = useMemo(
+    () => ({
+      groceries: require('../../../images/icon/produckt.png'),
+      cafe: require('../../../images/icon/cafe-restoraunt.png'),
+      transport: require('../../../images/icon/car.png'),
+      housing: require('../../../images/icon/komunalka.png'),
+      communication: require('../../../images/icon/subb.png'),
+      health: require('../../../images/icon/healt.png'),
+      education: require('../../../images/icon/book.png'),
+      entertainment: require('../../../images/icon/razvlich.png'),
+      other_expense: require('../../../images/icon/homee.png'),
+    }),
+    [],
+  );
+
+  const timezoneName = useMemo(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tz = (Intl as any)?.DateTimeFormat?.().resolvedOptions?.().timeZone;
+      return tz || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }, []);
+
+  const loadData = useCallback(async (alive: boolean) => {
+    setLoading(true);
+    try {
+      const analytics = await apiService.getTransactionsAnalytics({ timezone: timezoneName });
+      const list = await apiService.listTransactions({ type: 'EXPENSE', timezone: timezoneName, limit: 50, page: 1 });
+      if (!alive) return;
+      setTotal(analytics.totals.expense || 0);
+      setTransactions(list.data || []);
+    } catch {
+      if (!alive) return;
+      setTotal(0);
+      setTransactions([]);
+    } finally {
+      if (alive) setLoading(false);
+    }
+  }, [timezoneName]);
+
+  useEffect(() => {
+    let alive = true;
+    void loadData(alive);
+    return () => {
+      alive = false;
+    };
+  }, [loadData]);
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      'Удаление',
+      'Удалить эту операцию?',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Удалить', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.deleteTransaction(id);
+              await loadData(true);
+            } catch (e: any) {
+              Alert.alert('Ошибка', e.message || 'Не удалось удалить');
+            }
+          }
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.wrapper}>
@@ -80,7 +115,11 @@ const ExpensesView: React.FC<ExpensesViewProps> = ({ onBack }) => {
       {/* Summary Card - Fixed */}
       <View style={styles.summaryCardContainer}>
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryAmount}>-20 000₽</Text>
+          {loading ? (
+            <ActivityIndicator />
+          ) : (
+            <Text style={styles.summaryAmount}>-{Math.round(total).toLocaleString('ru-RU')}₽</Text>
+          )}
           <Text style={styles.summarySubtitle}>за месяц</Text>
         </View>
       </View>
@@ -91,19 +130,37 @@ const ExpensesView: React.FC<ExpensesViewProps> = ({ onBack }) => {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        {transactions.map((transaction) => (
-          <View key={transaction.id} style={styles.transactionCard}>
-            <View style={styles.transactionLeft}>
-              <Text style={styles.transactionIcon}>{transaction.icon}</Text>
-              <View style={styles.transactionInfo}>
-                <Text style={styles.transactionCategory}>{transaction.category}</Text>
-                <Text style={styles.transactionPaymentMethod}>{transaction.paymentMethod}</Text>
-                <Text style={styles.transactionDate}>{transaction.date}</Text>
-              </View>
-            </View>
-            <Text style={styles.transactionAmount}>{transaction.amount}</Text>
+        {!loading && transactions.length === 0 ? (
+          <View style={styles.transactionCard}>
+            <Text style={styles.transactionCategory}>Нет операций</Text>
+            <Text style={styles.transactionAmount}>0₽</Text>
           </View>
-        ))}
+        ) : (
+          transactions.map((t) => {
+            const cat = (t as any).category as Category | undefined;
+            const iconKey = cat?.iconKey || 'other_expense';
+            const iconSource = iconByKey[iconKey] || iconByKey['other_expense'];
+
+            return (
+              <TouchableOpacity 
+                key={t.id} 
+                style={styles.transactionCard}
+                onLongPress={() => handleDelete(t.id)}
+                delayLongPress={500}
+              >
+                <View style={styles.transactionLeft}>
+                  <Image source={iconSource} style={styles.transactionIconImage} resizeMode="contain" />
+                  <View style={styles.transactionInfo}>
+                    <Text style={styles.transactionCategory}>{t.category?.name || 'Без категории'}</Text>
+                    <Text style={styles.transactionPaymentMethod}>{t.paymentMethod?.name || '—'}</Text>
+                    <Text style={styles.transactionDate}>{new Date(t.occurredAt).toLocaleDateString('ru-RU')}</Text>
+                  </View>
+                </View>
+                <Text style={styles.transactionAmount}>-{Math.round(t.amount).toLocaleString('ru-RU')}₽</Text>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
     </View>
   );
@@ -205,8 +262,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  transactionIcon: {
-    fontSize: 32,
+  transactionIconImage: {
+    width: 40,
+    height: 40,
     marginRight: 16,
   },
   transactionInfo: {

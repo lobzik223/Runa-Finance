@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,20 +6,33 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService, type Goal } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface EditGoalViewProps {
-  onBack?: () => void;
+  goal: Goal | null;
+  onBack?: (updated?: boolean) => void;
 }
 
-const EditGoalView: React.FC<EditGoalViewProps> = ({ onBack }) => {
+const EditGoalView: React.FC<EditGoalViewProps> = ({ onBack, goal }) => {
   const insets = useSafeAreaInsets();
-  const [goalName, setGoalName] = useState('Путешествие в Тайланд');
-  const [targetAmount, setTargetAmount] = useState('200 000');
-  const [accumulated, setAccumulated] = useState('45 000');
+  const [goalName, setGoalName] = useState('');
+  const [targetAmount, setTargetAmount] = useState('');
+  const [addAmount, setAddAmount] = useState('');
+
+  useEffect(() => {
+    setGoalName(goal?.name || '');
+    setTargetAmount(goal ? String(goal.targetAmount) : '');
+  }, [goal]);
+
+  const parseNum = (v: string) => {
+    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -68,11 +81,11 @@ const EditGoalView: React.FC<EditGoalViewProps> = ({ onBack }) => {
 
         {/* Accumulated Field */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Накоплено</Text>
+          <Text style={styles.fieldLabel}>Добавить сумму</Text>
           <TextInput
             style={styles.inputField}
-            value={accumulated}
-            onChangeText={setAccumulated}
+            value={addAmount}
+            onChangeText={setAddAmount}
             placeholder=""
             placeholderTextColor="#999"
             keyboardType="numeric"
@@ -81,16 +94,72 @@ const EditGoalView: React.FC<EditGoalViewProps> = ({ onBack }) => {
 
         {/* Action Buttons */}
         <View style={styles.buttonsRow}>
-          <TouchableOpacity style={styles.cancelButton} onPress={onBack}>
+          <TouchableOpacity style={styles.cancelButton} onPress={() => onBack?.()}>
             <Text style={styles.buttonText}>Отменить</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.saveButton}>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={() => {
+              void (async () => {
+                if (!goal) return;
+                const name = goalName.trim();
+                const target = parseNum(targetAmount);
+                if (!name) {
+                  Alert.alert('Ошибка', 'Введите название');
+                  return;
+                }
+                if (!Number.isFinite(target) || target <= 0) {
+                  Alert.alert('Ошибка', 'Введите целевую сумму');
+                  return;
+                }
+
+                const add = addAmount ? parseNum(addAmount) : 0;
+                if (addAmount && (!Number.isFinite(add) || add <= 0)) {
+                  Alert.alert('Ошибка', 'Введите сумму пополнения');
+                  return;
+                }
+
+                try {
+                  await apiService.updateGoal(goal.id, { name, targetAmount: target });
+                  if (add > 0) {
+                    await apiService.addGoalContribution(goal.id, { amount: add });
+                  }
+                  Alert.alert('Успех', 'Сохранено');
+                  onBack?.(true);
+                } catch (e: any) {
+                  Alert.alert('Ошибка', e?.message || 'Не удалось сохранить');
+                }
+              })();
+            }}
+          >
             <Text style={styles.buttonText}>Сохранить</Text>
           </TouchableOpacity>
         </View>
 
         {/* Delete Button */}
-        <TouchableOpacity style={styles.deleteButton}>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => {
+            if (!goal) return;
+            Alert.alert('Удалить цель?', 'Цель будет скрыта из активных', [
+              { text: 'Отмена', style: 'cancel' },
+              {
+                text: 'Удалить',
+                style: 'destructive',
+                onPress: () => {
+                  void (async () => {
+                    try {
+                      await apiService.deleteGoal(goal.id);
+                      onBack?.(true);
+                    } catch (e: any) {
+                      Alert.alert('Ошибка', e?.message || 'Не удалось удалить');
+                    }
+                  })();
+                },
+              },
+            ]);
+          }}
+        >
           <Text style={styles.deleteButtonText}>Удалить цель</Text>
         </TouchableOpacity>
       </View>

@@ -9,8 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService } from '../services/api';
+import { AppleIcon } from './common/icons/AppleIcon';
+import { GoogleIcon } from './common/icons/GoogleIcon';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -23,6 +28,54 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    // Валидация
+    if (!email.trim()) {
+      Alert.alert('Ошибка', 'Введите email');
+      return;
+    }
+
+    if (!email.includes('@')) {
+      Alert.alert('Ошибка', 'Введите корректный email');
+      return;
+    }
+
+    if (!password) {
+      Alert.alert('Ошибка', 'Введите пароль');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      console.log('[Login] Начало входа:', { email });
+      
+      const response = await apiService.login({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      console.log('[Login] Успешный вход:', response.user);
+      Alert.alert('Успех', `Добро пожаловать, ${response.user.name}!`, [
+        {
+          text: 'OK',
+          onPress: () => {
+            if (onComplete) {
+              onComplete();
+            }
+          },
+        },
+      ]);
+    } catch (error: any) {
+      console.error('[Login] Ошибка входа:', error);
+      const errorMessage = error.message || 'Ошибка при входе. Проверьте email и пароль.';
+      Alert.alert('Ошибка входа', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -61,6 +114,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!loading}
             />
           </View>
 
@@ -73,19 +127,20 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
               onChangeText={setPassword}
               secureTextEntry
               autoCapitalize="none"
+              editable={!loading}
             />
           </View>
 
           <TouchableOpacity 
-            style={styles.primaryButton}
-            onPress={() => {
-              // Переход на экран PIN-кода при любых данных (без валидации)
-              if (onComplete) {
-                onComplete();
-              }
-            }}
+            style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
           >
-            <Text style={styles.primaryButtonText}>Войти</Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Войти</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.separator}>
@@ -101,8 +156,11 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
                 onComplete();
               }
             }}
+            disabled={loading}
           >
-            <Text style={styles.appleIcon}>🍎</Text>
+            <View style={styles.socialIcon}>
+              <AppleIcon size={20} color="#FFFFFF" />
+            </View>
             <Text style={styles.socialButtonText}>Войти с помощью Apple</Text>
           </TouchableOpacity>
 
@@ -113,14 +171,17 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
                 onComplete();
               }
             }}
+            disabled={loading}
           >
-            <Text style={styles.googleIcon}>G</Text>
+            <View style={[styles.socialIcon, styles.socialIconWhite]}>
+              <GoogleIcon size={20} />
+            </View>
             <Text style={styles.socialButtonText}>Войти с помощью Google</Text>
           </TouchableOpacity>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Нет аккаунта? </Text>
-            <TouchableOpacity onPress={onNavigateToRegistration}>
+            <TouchableOpacity onPress={onNavigateToRegistration} disabled={loading}>
               <Text style={styles.footerLink}>Зарегистрируйтесь</Text>
             </TouchableOpacity>
           </View>
@@ -191,6 +252,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
   },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
   primaryButtonText: {
     fontSize: 17,
     fontWeight: '600',
@@ -224,21 +288,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 16,
   },
-  appleIcon: {
-    fontSize: 20,
+  socialIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4285F4',
+  socialIconWhite: {
     marginRight: 12,
     backgroundColor: '#FFFFFF',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    textAlign: 'center',
-    lineHeight: 24,
   },
   socialButtonText: {
     fontSize: 16,
@@ -265,4 +325,3 @@ const styles = StyleSheet.create({
 });
 
 export default LoginView;
-

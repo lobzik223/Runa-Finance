@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,67 +7,77 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService, type BackendTransactionType, type Category } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface CategoriesViewProps {
   type: 'income' | 'expense';
   onBack: () => void;
+  onSelect?: (category: { id: number; name: string }) => void;
 }
 
-const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
+const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack, onSelect }) => {
   const insets = useSafeAreaInsets();
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
 
-  const incomeCategories = [
-    {
-      id: 'salary',
-      name: 'Зарплата',
-      icon: require('../../../images/icon/zarplata.png'),
-      subcategories: [
-        { id: 'bonus', name: 'Премии / бонусы' },
-        { id: 'main', name: 'Основная зарплата' },
-        { id: 'advance', name: 'Аванс' },
-      ],
-    },
-    { id: 'freelance', name: 'Подработка / Фриланс', icon: require('../../../images/icon/freelance.png') },
-    { id: 'business', name: 'Бизнес-доход', icon: require('../../../images/icon/biznes.png') },
-    { id: 'investment', name: 'Инвестиционные доходы', icon: require('../../../images/icon/dohodinvest.png') },
-    { id: 'passive', name: 'Пассивный доход', icon: require('../../../images/icon/pasifdohod.png') },
-    { id: 'rent', name: 'Аренда', icon: require('../../../images/icon/arenda.png') },
-    { id: 'gifts', name: 'Подарки и переводы', icon: require('../../../images/icon/donate.png') },
-    { id: 'social', name: 'Социальные выплаты', icon: require('../../../images/icon/soc.png') },
-    { id: 'property', name: 'Продажа имущества', icon: require('../../../images/icon/sale.png') },
-    { id: 'other', name: 'Прочие доходы', icon: require('../../../images/icon/procdohod.png') },
-  ];
+  const iconByKey: Record<string, any> = useMemo(
+    () => ({
+      salary: require('../../../images/icon/zarplata.png'),
+      freelance: require('../../../images/icon/freelance.png'),
+      biznes: require('../../../images/icon/biznes.png'),
+      dohodinvest: require('../../../images/icon/dohodinvest.png'),
+      pasifdohod: require('../../../images/icon/pasifdohod.png'),
+      arenda: require('../../../images/icon/arenda.png'),
+      hediye: require('../../../images/icon/hediye.png'),
+      soc: require('../../../images/icon/soc.png'),
+      sale: require('../../../images/icon/sale.png'),
+      procdohod: require('../../../images/icon/procdohod.png'),
 
-  const expenseCategories = [
-    { id: 'groceries', name: 'Продукты', icon: require('../../../images/icon/produckt.png') },
-    { id: 'cafe', name: 'Кафе и рестораны', icon: require('../../../images/icon/cafe-restoraunt.png') },
-    { id: 'transport', name: 'Транспорт', icon: require('../../../images/icon/car.png') },
-    { id: 'housing', name: 'Жилье и комуналка', icon: require('../../../images/icon/komunalka.png') },
-    { id: 'communication', name: 'Связь и подписки', icon: require('../../../images/icon/subb.png') },
-    { id: 'shopping', name: 'Покупки вещи', icon: require('../../../images/icon/pokup.png') },
-    { id: 'health', name: 'Здоровье', icon: require('../../../images/icon/healt.png') },
-    { id: 'sport', name: 'Спорт', icon: require('../../../images/icon/sport.png') },
-    { id: 'education', name: 'Образование', icon: require('../../../images/icon/book.png') },
-    { id: 'travel', name: 'Путишествие', icon: require('../../../images/icon/airplane.png') },
-    { id: 'gifts', name: 'Подарки', icon: require('../../../images/icon/hediye.png') },
-    { id: 'home', name: 'Дом и быт', icon: require('../../../images/icon/homee.png') },
-    { id: 'entertainment', name: 'Развлечения', icon: require('../../../images/icon/razvlich.png') },
-  ];
+      produckt: require('../../../images/icon/produckt.png'),
+      'cafe-restoraunt': require('../../../images/icon/cafe-restoraunt.png'),
+      car: require('../../../images/icon/car.png'),
+      komunalka: require('../../../images/icon/komunalka.png'),
+      subb: require('../../../images/icon/subb.png'),
+      pokup: require('../../../images/icon/pokup.png'),
+      healt: require('../../../images/icon/healt.png'),
+      sport: require('../../../images/icon/sport.png'),
+      book: require('../../../images/icon/book.png'),
+      airplane: require('../../../images/icon/airplane.png'),
+      donate: require('../../../images/icon/donate.png'),
+      homee: require('../../../images/icon/homee.png'),
+      razvlich: require('../../../images/icon/razvlich.png'),
+      other_expense: require('../../../images/icon/homee.png'),
+    }),
+    [],
+  );
 
-  const categories = type === 'income' ? incomeCategories : expenseCategories;
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    void (async () => {
+      const apiType: BackendTransactionType = type === 'income' ? 'INCOME' : 'EXPENSE';
+      try {
+        const res = await apiService.listCategories({ type: apiType });
+        if (alive) setCategories(res);
+      } catch {
+        if (alive) setCategories([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [type]);
 
-  const toggleCategory = (categoryId: string) => {
-    if (expandedCategory === categoryId) {
-      setExpandedCategory(null);
-    } else {
-      setExpandedCategory(categoryId);
-    }
-  };
+  const mainCategories = useMemo(() => categories.filter(c => !c.parentId), [categories]);
+  const getSubcategories = (parentId: number) => categories.filter(c => c.parentId === parentId);
 
   return (
     <View style={styles.wrapper}>
@@ -88,43 +98,68 @@ const CategoriesView: React.FC<CategoriesViewProps> = ({ type, onBack }) => {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        {categories.map((category) => (
-          <View key={category.id}>
-            <TouchableOpacity
-              style={[
-                styles.categoryItem,
-                'subcategories' in category && expandedCategory === category.id && styles.categoryItemMain,
-                'subcategories' in category && expandedCategory === category.id && styles.categoryItemExpanded
-              ]}
-              onPress={() => {
-                if ('subcategories' in category) {
-                  toggleCategory(category.id);
-                }
-              }}
-            >
-              <View style={styles.categoryLeft}>
-                <Image source={category.icon} style={styles.categoryIcon} resizeMode="contain" />
-                <Text style={styles.categoryText}>{category.name}</Text>
-              </View>
-              <Text style={styles.categoryArrow}>→</Text>
-            </TouchableOpacity>
-
-            {/* Subcategories */}
-            {'subcategories' in category && expandedCategory === category.id && (
-              <View style={styles.subcategoriesContainer}>
-                {category.subcategories.map((subcategory) => (
-                  <TouchableOpacity
-                    key={subcategory.id}
-                    style={styles.subcategoryItem}
-                  >
-                    <Text style={styles.subcategoryText}>{subcategory.name}</Text>
-                    <Text style={styles.categoryArrow}>→</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+        {loading ? (
+          <View style={{ paddingTop: 40, alignItems: 'center' }}>
+            <ActivityIndicator />
           </View>
-        ))}
+        ) : mainCategories.length === 0 ? (
+          <View style={{ paddingTop: 40, alignItems: 'center' }}>
+            <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Категории не найдены</Text>
+          </View>
+        ) : (
+          mainCategories.map((category) => {
+            const isExpanded = expandedCategory === String(category.id);
+            const subs = getSubcategories(category.id);
+
+            return (
+              <View key={category.id}>
+                <TouchableOpacity
+                  style={[
+                    styles.categoryItem,
+                    isExpanded && styles.categoryItemMain,
+                    isExpanded && subs.length > 0 && styles.categoryItemExpanded
+                  ]}
+                  onPress={() => {
+                    if (subs.length > 0) {
+                      setExpandedCategory(isExpanded ? null : String(category.id));
+                    } else {
+                      onSelect?.({ id: category.id, name: category.name });
+                      onBack();
+                    }
+                  }}
+                >
+                  <View style={styles.categoryLeft}>
+                    <Image
+                      source={(category.iconKey && iconByKey[category.iconKey]) || require('../../../images/icon/homee.png')}
+                      style={styles.categoryIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.categoryText}>{category.name}</Text>
+                  </View>
+                  <Text style={[styles.categoryArrow, isExpanded && { transform: [{ rotate: '90deg' }] }]}>→</Text>
+                </TouchableOpacity>
+
+                {isExpanded && subs.length > 0 && (
+                  <View style={styles.subcategoriesContainer}>
+                    {subs.map((sub) => (
+                      <TouchableOpacity
+                        key={sub.id}
+                        style={styles.subcategoryItem}
+                        onPress={() => {
+                          onSelect?.({ id: sub.id, name: sub.name });
+                          onBack();
+                        }}
+                      >
+                        <Text style={styles.subcategoryText}>{sub.name}</Text>
+                        <Text style={styles.categoryArrow}>→</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })
+        )}
       </ScrollView>
     </View>
   );

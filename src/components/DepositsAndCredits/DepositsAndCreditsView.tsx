@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CreditDetailsView from './CreditDetailsView';
 import AddCreditView from './AddCreditView';
 import AddDepositView from './AddDepositView';
+import { apiService, type CreditAccount, type DepositAccount } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,11 +31,38 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
   const [showAddDeposit, setShowAddDeposit] = useState(false);
   const [selectedCreditTitle, setSelectedCreditTitle] = useState('Кредит на телефон');
   const [selectedDetailsMode, setSelectedDetailsMode] = useState<'credit' | 'deposit'>('credit');
+  const [loading, setLoading] = useState(false);
+  const [creditAccounts, setCreditAccounts] = useState<CreditAccount[]>([]);
+  const [depositAccounts, setDepositAccounts] = useState<DepositAccount[]>([]);
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const [credits, deposits] = await Promise.all([
+        apiService.listCreditAccounts(),
+        apiService.listDepositAccounts(),
+      ]);
+      setCreditAccounts(credits);
+      setDepositAccounts(deposits);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void reload();
+  }, []);
+
+  const creditCards = useMemo(() => creditAccounts.filter((a) => a.kind === 'CREDIT_CARD'), [creditAccounts]);
+  const loans = useMemo(() => creditAccounts.filter((a) => a.kind === 'LOAN'), [creditAccounts]);
 
   if (showAddDeposit) {
     return (
       <AddDepositView
-        onBack={() => setShowAddDeposit(false)}
+        onBack={async () => {
+          setShowAddDeposit(false);
+          await reload();
+        }}
       />
     );
   }
@@ -41,7 +70,10 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
   if (showAddCredit) {
     return (
       <AddCreditView
-        onBack={() => setShowAddCredit(false)}
+        onBack={async () => {
+          setShowAddCredit(false);
+          await reload();
+        }}
       />
     );
   }
@@ -98,18 +130,17 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
       >
         {activeTab === 'credits' ? (
           <>
-            {/* Payment Notification Card */}
+            {/* Payment Notification Card (placeholder until scheduled-events UI is wired) */}
             <View style={styles.notificationCard}>
-              <Image 
-                source={require('../../../images/Attache2d_image.png')} 
+              <Image
+                source={require('../../../images/Attache2d_image.png')}
                 style={styles.notificationIconImage}
                 resizeMode="contain"
               />
               <View style={styles.notificationContent}>
-                <Text style={styles.notificationDate}>Завтра 30 ноября</Text>
-                <Text style={styles.notificationLabel}>По плану финансовое действие:</Text>
-                <Text style={styles.notificationAmount}>Платёж по кредиту 3 400₽</Text>
-                <Text style={styles.notificationSubtext}>Не пропусти. Дисциплина = свобода</Text>
+                <Text style={styles.notificationDate}>Ближайшие события</Text>
+                <Text style={styles.notificationLabel}>Пуш-уведомления появятся, когда добавишь кредит/вклад</Text>
+                <Text style={styles.notificationSubtext}>Дисциплина = свобода</Text>
               </View>
             </View>
 
@@ -123,87 +154,112 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
 
             {/* Credits Section */}
             <Text style={styles.sectionTitle}>Кредиты</Text>
-            
-            <View style={styles.creditCard}>
-              <Text style={styles.creditCardTitle}>Кредит на телефон</Text>
-              <Text style={styles.creditCardAmount}>50 000₽</Text>
-              
-              {/* Progress Bar */}
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: '24%' }]} />
+
+            {loading ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator />
               </View>
-              
-              <View style={styles.creditCardInfo}>
-                <View style={styles.creditCardInfoLeft}>
-                  <Text style={styles.creditCardInfoLabel}>Следующий платеж:</Text>
-                  <Text style={styles.creditCardInfoValue}>3 400₽</Text>
-                </View>
-                <View style={styles.creditCardInfoRight}>
-                  <Text style={styles.creditCardInfoLabel}>Остаток:</Text>
-                  <Text style={styles.creditCardInfoValue}>38 000₽</Text>
-                </View>
+            ) : loans.length === 0 ? (
+              <View style={{ paddingVertical: 10 }}>
+                <Text style={{ color: '#FFFFFF', opacity: 0.9, fontWeight: '600' }}>
+                  Пока нет кредитов — добавь первый.
+                </Text>
               </View>
-              
-              <TouchableOpacity 
-                style={styles.detailsButton}
-                onPress={() => {
-                  setSelectedCreditTitle('Кредит на телефон');
-                  setSelectedDetailsMode('credit');
-                  setShowCreditDetails(true);
-                }}
-              >
-                <Text style={styles.detailsButtonText}>Детали</Text>
-              </TouchableOpacity>
-            </View>
+            ) : (
+              loans.map((loan) => (
+                <View key={loan.id} style={styles.creditCard}>
+                  <Text style={styles.creditCardTitle}>{loan.name}</Text>
+                  <Text style={styles.creditCardAmount}>{Number(loan.currentBalance || 0).toLocaleString('ru-RU')}₽</Text>
+
+                  <View style={styles.creditCardInfo}>
+                    <View style={styles.creditCardInfoLeft}>
+                      <Text style={styles.creditCardInfoLabel}>Ставка:</Text>
+                      <Text style={styles.creditCardInfoValue}>{loan.interestRate ? `${loan.interestRate}%` : '—'}</Text>
+                    </View>
+                    <View style={styles.creditCardInfoRight}>
+                      <Text style={styles.creditCardInfoLabel}>Платёж:</Text>
+                      <Text style={styles.creditCardInfoValue}>
+                        {loan.minimumPayment ? `${Number(loan.minimumPayment).toLocaleString('ru-RU')}₽` : '—'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.detailsButton}
+                    onPress={() => {
+                      setSelectedCreditTitle(loan.name);
+                      setSelectedDetailsMode('credit');
+                      setShowCreditDetails(true);
+                    }}
+                  >
+                    <Text style={styles.detailsButtonText}>Детали</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
 
             {/* Credit Cards Section */}
             <Text style={styles.sectionTitle}>Кредитные карты</Text>
-            
-            <View style={styles.creditCard}>
-              <Text style={styles.creditCardTitle}>Кредитная карта Сбербанк</Text>
-              <Text style={styles.creditCardAmount}>50 000₽</Text>
-              
-              {/* Progress Bar */}
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: '24%' }]} />
+
+            {loading ? null : creditCards.length === 0 ? (
+              <View style={{ paddingVertical: 10 }}>
+                <Text style={{ color: '#FFFFFF', opacity: 0.9, fontWeight: '600' }}>
+                  Пока нет кредитных карт — добавь карту, чтобы работала синхронизация лимита.
+                </Text>
               </View>
-              
-              <View style={styles.creditCardInfo}>
-                <View style={styles.creditCardInfoLeft}>
-                  <Text style={styles.creditCardInfoLabel}>Следующий платеж:</Text>
-                  <Text style={styles.creditCardInfoValue}>3 400₽</Text>
-                </View>
-                <View style={styles.creditCardInfoRight}>
-                  <Text style={styles.creditCardInfoLabel}>Остаток:</Text>
-                  <Text style={styles.creditCardInfoValue}>38 000₽</Text>
-                </View>
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.detailsButton}
-                onPress={() => {
-                  setSelectedCreditTitle('Кредитная карта Сбербанк');
-                  setSelectedDetailsMode('credit');
-                  setShowCreditDetails(true);
-                }}
-              >
-                <Text style={styles.detailsButtonText}>Детали</Text>
-              </TouchableOpacity>
-            </View>
+            ) : (
+              creditCards.map((card) => {
+                const limit = Number(card.creditLimit || 0);
+                const debt = Number(card.currentBalance || 0);
+                const available = Math.max(0, limit - debt);
+                const pct = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : 0;
+                return (
+                  <View key={card.id} style={styles.creditCard}>
+                    <Text style={styles.creditCardTitle}>{card.name}</Text>
+                    <Text style={styles.creditCardAmount}>{available.toLocaleString('ru-RU')}₽ доступно</Text>
+
+                    <View style={styles.progressBarContainer}>
+                      <View style={[styles.progressBar, { width: `${pct}%` }]} />
+                    </View>
+
+                    <View style={styles.creditCardInfo}>
+                      <View style={styles.creditCardInfoLeft}>
+                        <Text style={styles.creditCardInfoLabel}>Долг:</Text>
+                        <Text style={styles.creditCardInfoValue}>{debt.toLocaleString('ru-RU')}₽</Text>
+                      </View>
+                      <View style={styles.creditCardInfoRight}>
+                        <Text style={styles.creditCardInfoLabel}>Лимит:</Text>
+                        <Text style={styles.creditCardInfoValue}>{limit.toLocaleString('ru-RU')}₽</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.detailsButton}
+                      onPress={() => {
+                        setSelectedCreditTitle(card.name);
+                        setSelectedDetailsMode('credit');
+                        setShowCreditDetails(true);
+                      }}
+                    >
+                      <Text style={styles.detailsButtonText}>Детали</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+            )}
           </>
         ) : (
           <>
-            {/* Payment Notification Card for Deposits */}
+            {/* Payment Notification Card for Deposits (placeholder) */}
             <View style={styles.notificationCard}>
-              <Image 
-                source={require('../../../images/Attache2d_image.png')} 
+              <Image
+                source={require('../../../images/Attache2d_image.png')}
                 style={styles.notificationIconImage}
                 resizeMode="contain"
               />
               <View style={styles.notificationContent}>
-                <Text style={styles.notificationDate}>Завтра 30 ноября</Text>
-                <Text style={styles.notificationLabel}>По плану финансовое действие:</Text>
-                <Text style={styles.notificationAmount}>Проценты по вкладу 5 000₽</Text>
+                <Text style={styles.notificationDate}>Ближайшие события</Text>
+                <Text style={styles.notificationLabel}>Пуш-уведомления появятся после добавления вкладов</Text>
               </View>
             </View>
 
@@ -215,32 +271,45 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
               <Text style={styles.addCreditButtonText}>Добавить вклад</Text>
             </TouchableOpacity>
 
-            {/* Deposit Card */}
-            <View style={styles.creditCard}>
-              <Text style={styles.creditCardTitle}>Вклад "Накопительный"</Text>
-              <Text style={styles.creditCardAmount}>200 000₽</Text>
-              
-              <View style={styles.depositInfo}>
-                <Text style={styles.depositInfoLabel}>Начисление процентов:</Text>
-                <Text style={styles.depositInfoValue}>15 марта</Text>
+            {loading ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator />
               </View>
-              
-              <View style={styles.depositInfo}>
-                <Text style={styles.depositInfoLabel}>Ожидаемый доход:</Text>
-                <Text style={styles.depositInfoValue}>1 190₽</Text>
+            ) : depositAccounts.length === 0 ? (
+              <View style={{ paddingVertical: 10 }}>
+                <Text style={{ color: '#FFFFFF', opacity: 0.9, fontWeight: '600' }}>
+                  Пока нет вкладов — добавь первый.
+                </Text>
               </View>
-              
-              <TouchableOpacity 
-                style={styles.detailsButton}
-                onPress={() => {
-                  setSelectedCreditTitle('Вклад "Накопительный"');
-                  setSelectedDetailsMode('deposit');
-                  setShowCreditDetails(true);
-                }}
-              >
-                <Text style={styles.detailsButtonText}>Детали</Text>
-              </TouchableOpacity>
-            </View>
+            ) : (
+              depositAccounts.map((dep) => (
+                <View key={dep.id} style={styles.creditCard}>
+                  <Text style={styles.creditCardTitle}>{dep.name}</Text>
+                  <Text style={styles.creditCardAmount}>{Number(dep.principal || 0).toLocaleString('ru-RU')}₽</Text>
+
+                  <View style={styles.depositInfo}>
+                    <Text style={styles.depositInfoLabel}>Ставка:</Text>
+                    <Text style={styles.depositInfoValue}>{dep.interestRate}%</Text>
+                  </View>
+
+                  <View style={styles.depositInfo}>
+                    <Text style={styles.depositInfoLabel}>След. начисление:</Text>
+                    <Text style={styles.depositInfoValue}>{dep.nextPayoutAt ? new Date(dep.nextPayoutAt).toLocaleDateString('ru-RU') : '—'}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.detailsButton}
+                    onPress={() => {
+                      setSelectedCreditTitle(dep.name);
+                      setSelectedDetailsMode('deposit');
+                      setShowCreditDetails(true);
+                    }}
+                  >
+                    <Text style={styles.detailsButtonText}>Детали</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
           </>
         )}
       </ScrollView>

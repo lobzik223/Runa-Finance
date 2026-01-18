@@ -6,13 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddGoalViewProps {
-  onBack?: () => void;
+  onBack?: (created?: boolean) => void;
 }
 
 const AddGoalView: React.FC<AddGoalViewProps> = ({ onBack }) => {
@@ -20,6 +22,11 @@ const AddGoalView: React.FC<AddGoalViewProps> = ({ onBack }) => {
   const [goalName, setGoalName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [accumulated, setAccumulated] = useState('');
+
+  const parseNum = (v: string) => {
+    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -80,7 +87,39 @@ const AddGoalView: React.FC<AddGoalViewProps> = ({ onBack }) => {
         </View>
 
         {/* Add Button */}
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => {
+            void (async () => {
+              const name = goalName.trim();
+              if (!name) {
+                Alert.alert('Ошибка', 'Введите название');
+                return;
+              }
+              const target = parseNum(targetAmount);
+              if (!Number.isFinite(target) || target <= 0) {
+                Alert.alert('Ошибка', 'Введите целевую сумму');
+                return;
+              }
+              const initial = accumulated ? parseNum(accumulated) : 0;
+              if (accumulated && (!Number.isFinite(initial) || initial < 0)) {
+                Alert.alert('Ошибка', 'Неверная сумма накоплено');
+                return;
+              }
+
+              try {
+                const goal = await apiService.createGoal({ name, targetAmount: target });
+                if (initial > 0) {
+                  await apiService.addGoalContribution(goal.id, { amount: initial });
+                }
+                Alert.alert('Успех', 'Цель создана');
+                onBack?.(true);
+              } catch (e: any) {
+                Alert.alert('Ошибка', e?.message || 'Не удалось создать цель');
+              }
+            })();
+          }}
+        >
           <Text style={styles.addButtonText}>Добавить</Text>
         </TouchableOpacity>
       </View>

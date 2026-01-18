@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, G } from 'react-native-svg';
+import { apiService, type AiChatResponse } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -20,6 +24,7 @@ interface Message {
   text: string;
   sender: 'runa' | 'user';
   senderName: string;
+  chartData?: AiChatResponse['chartData'];
 }
 
 interface ChatViewProps {
@@ -28,7 +33,11 @@ interface ChatViewProps {
 
 const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
   const [message, setMessage] = useState('');
+  const [threadId, setThreadId] = useState<string | undefined>(undefined);
+  const [sending, setSending] = useState(false);
+  const [userName, setUserName] = useState('Пользователь');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -36,24 +45,131 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
       sender: 'runa',
       senderName: 'Runa',
     },
-    {
-      id: '2',
-      text: 'Привет, сделай расчет по моим инвестициям',
-      sender: 'user',
-      senderName: 'Вася',
-    },
   ]);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', scrollToBottom);
+    return () => {
+      showSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const token = await apiService.getToken();
+        if (!token) return;
+        const me = await apiService.getMe();
+        if (alive) setUserName(me.user?.name || 'Пользователь');
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const colors = useMemo(
+    () => ['#1D4981', '#A0522D', '#4CAF50', '#E53935', '#9C27B0', '#FF9800', '#009688', '#795548'],
+    [],
+  );
+
+  const Donut: React.FC<{ title: string; total: number; items: Array<{ name: string; value: number }> }> = ({ title, total, items }) => {
+    const size = 140;
+    const stroke = 18;
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    let acc = 0;
+
+    return (
+      <View style={{ alignItems: 'center' }}>
+        <Text style={{ fontWeight: '700', color: '#333333', marginBottom: 6 }}>{title}</Text>
+        <Svg width={size} height={size}>
+          <G rotation={-90} originX={size / 2} originY={size / 2}>
+            <Circle cx={size / 2} cy={size / 2} r={r} stroke="#E8E0D4" strokeWidth={stroke} fill="none" />
+            {items
+              .filter((x) => x.value > 0)
+              .map((x, idx) => {
+                const frac = total > 0 ? x.value / total : 0;
+                const len = c * frac;
+                const dashArray = `${len} ${c - len}`;
+                const dashOffset = -c * acc;
+                acc += frac;
+                return (
+                  <Circle
+                    key={`${x.name}-${idx}`}
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={r}
+                    stroke={colors[idx % colors.length]}
+                    strokeWidth={stroke}
+                    fill="none"
+                    strokeDasharray={dashArray}
+                    strokeDashoffset={dashOffset}
+                    strokeLinecap="butt"
+                  />
+                );
+              })}
+          </G>
+        </Svg>
+        <Text style={{ marginTop: 6, color: '#333333', fontWeight: '700' }}>{Math.round(total).toLocaleString('ru-RU')} ₽</Text>
+      </View>
+    );
+  };
 
   const handleSend = () => {
     if (message.trim()) {
+      const userText = message.trim();
       const newMessage: Message = {
         id: Date.now().toString(),
-        text: message.trim(),
+        text: userText,
         sender: 'user',
-        senderName: 'Вася',
+        senderName: userName,
       };
       setMessages([...messages, newMessage]);
       setMessage('');
+
+      void (async () => {
+        setSending(true);
+        try {
+          const res = await apiService.sendAiMessage({ message: userText, threadId });
+          setThreadId(res.threadId);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `ai-${res.messageId}`,
+              text: res.message,
+              sender: 'runa',
+              senderName: 'Runa',
+              chartData: res.chartData,
+            },
+          ]);
+        } catch (e: any) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `ai-err-${Date.now()}`,
+              text: e?.message || 'Не удалось получить ответ от ИИ',
+              sender: 'runa',
+              senderName: 'Runa',
+            },
+          ]);
+        } finally {
+          setSending(false);
+        }
+      })();
     }
   };
 
@@ -75,9 +191,12 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={[styles.messagesContainer, { paddingBottom: 20 }]}
           showsVerticalScrollIndicator={false}
+          onContentSizeChange={scrollToBottom}
+          keyboardShouldPersistTaps="handled"
         >
           {messages.map((msg) => (
             <View
@@ -89,7 +208,7 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
             >
               {msg.sender === 'runa' && (
                 <View style={styles.avatarLeft}>
-                  <Image source={require('../icon/chatlogo.png')} style={styles.avatarImage} />
+                  <Image source={require('../../../images/runalogo2.png')} style={styles.avatarImage} />
                 </View>
               )}
               
@@ -106,6 +225,28 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
                   <Text style={[styles.messageText, msg.sender === 'user' ? styles.messageTextRight : styles.messageTextLeft]}>
                     {msg.text}
                   </Text>
+
+                  {msg.sender === 'runa' && msg.chartData?.chartType === 'donut' && (
+                    <View style={{ marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12, minWidth: SCREEN_WIDTH * 0.7 }}>
+                      <Text style={{ fontWeight: '800', color: '#1D4981', marginBottom: 10 }}>
+                        График доходов и расходов
+                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+                        <Donut title="Доходы" total={msg.chartData.incomeTotal} items={msg.chartData.incomeByCategory} />
+                        <Donut title="Расходы" total={msg.chartData.expenseTotal} items={msg.chartData.expenseByCategory} />
+                      </View>
+                      <View style={{ marginTop: 10 }}>
+                        <Text style={{ fontWeight: '700', color: '#333333', marginBottom: 6 }}>Топ расходов</Text>
+                        {msg.chartData.expenseByCategory.slice(0, 4).map((x, idx) => (
+                          <View key={`${x.name}-${idx}`} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors[idx % colors.length], marginRight: 6 }} />
+                            <Text style={{ color: '#333333', fontSize: 12, flex: 1 }}>{x.name}</Text>
+                            <Text style={{ color: '#333333', fontSize: 12, fontWeight: '600' }}>{Math.round(x.value).toLocaleString('ru-RU')} ₽</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
                   
                   {/* Bubble Tails */}
                   {msg.sender === 'runa' ? (
@@ -118,26 +259,39 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
 
               {msg.sender === 'user' && (
                 <View style={styles.avatarRight}>
-                  <Image source={require('../icon/profile.png')} style={styles.avatarImage} />
+                  <View style={styles.userAvatarCircle}>
+                    <Text style={styles.userAvatarText}>{userName.charAt(0).toUpperCase()}</Text>
+                  </View>
                 </View>
               )}
             </View>
           ))}
+          {sending && (
+            <View style={styles.messageWrapperLeft}>
+              <View style={styles.avatarLeft}>
+                <Image source={require('../../../images/runalogo2.png')} style={styles.avatarImage} />
+              </View>
+              <View style={[styles.messageBubble, styles.messageBubbleLeft]}>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              </View>
+            </View>
+          )}
         </ScrollView>
 
-        {/* Input Area - Redesigned to match image */}
-        <View style={[styles.inputWrapper, { marginBottom: insets.bottom + 15 }]}>
+        {/* Input Area */}
+        <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 10 }]}>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="Введите сообщения"
+              placeholder="Введите сообщение..."
               placeholderTextColor="#999"
               value={message}
               onChangeText={setMessage}
               multiline
+              blurOnSubmit={false}
             />
-            <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-              <View style={styles.sendIconCircle}>
+            <TouchableOpacity style={styles.sendButton} onPress={handleSend} disabled={sending || !message.trim()}>
+              <View style={[styles.sendIconCircle, (!message.trim() || sending) && { opacity: 0.6 }]}>
                 <Text style={styles.sendButtonText}>›</Text>
               </View>
             </TouchableOpacity>
@@ -238,6 +392,19 @@ const styles = StyleSheet.create({
     height: 24,
     resizeMode: 'contain',
   },
+  userAvatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1D4981',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
   messageContent: {
     maxWidth: '80%',
   },
@@ -312,9 +479,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FDEBD0',
-    borderRadius: 35,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    borderRadius: 28,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -323,19 +490,19 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 16,
     color: '#333',
-    maxHeight: 100,
-    paddingTop: 8,
-    paddingBottom: 8,
+    maxHeight: 80,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   sendButton: {
     marginLeft: 10,
   },
   sendIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#1D4981',
     justifyContent: 'center',
     alignItems: 'center',

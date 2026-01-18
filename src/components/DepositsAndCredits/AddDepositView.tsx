@@ -7,8 +7,11 @@ import {
   StyleSheet,
   Switch,
   Dimensions,
+  ScrollView,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -24,6 +27,11 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
   const [interestAccrualDate, setInterestAccrualDate] = useState('25 число каждого месяца');
   const [endDate, setEndDate] = useState('');
   const [interestRate, setInterestRate] = useState('');
+
+  const parseNum = (v: string) => {
+    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -44,8 +52,11 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
       </View>
 
       {/* Content */}
-      <View
-        style={[styles.scrollView, styles.content, { paddingBottom: insets.bottom + 20 }]}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Deposit Name Field */}
         <View style={styles.fieldContainer}>
@@ -142,11 +153,54 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
 
         {/* Add Button */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.addButton}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              void (async () => {
+                const name = depositName.trim();
+                if (!name) {
+                  Alert.alert('Ошибка', 'Введите название');
+                  return;
+                }
+
+                const principal = parseNum(depositAmount);
+                if (!Number.isFinite(principal) || principal <= 0) {
+                  Alert.alert('Ошибка', 'Введите сумму больше 0');
+                  return;
+                }
+
+                const rate = parseNum(interestRate);
+                if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+                  Alert.alert('Ошибка', 'Введите процент (0–100)');
+                  return;
+                }
+
+                // Сейчас принимаем дату как YYYY-MM-DD (или ISO). Если пусто — backend сам поставит ближайшую.
+                const nextPayoutAt = interestAccrualDate.trim();
+                const maturity = endDate.trim();
+
+                try {
+                  await apiService.createDepositAccount({
+                    name,
+                    principal,
+                    interestRate: rate,
+                    payoutSchedule: 'MONTHLY',
+                    ...(nextPayoutAt ? { nextPayoutAt } : {}),
+                    ...(depositType === 'term' && maturity ? { maturityAt: maturity } : {}),
+                  });
+
+                  Alert.alert('Успех', 'Вклад добавлен');
+                  onBack?.();
+                } catch (e: any) {
+                  Alert.alert('Ошибка', e?.message || 'Не удалось добавить вклад');
+                }
+              })();
+            }}
+          >
             <Text style={styles.addButtonText}>Добавить вклад</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 };

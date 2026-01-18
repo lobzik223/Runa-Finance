@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ScrollView,
   Dimensions,
   Animated,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CategoriesView from './CategoriesView';
@@ -22,10 +24,15 @@ import DepositsAndCreditsView from '../DepositsAndCredits';
 import GoalsView from '../Goals';
 import InvestmentsView from '../Investments';
 import ProfileView from '../Profile';
+import { apiService, type TransactionsAnalyticsResponse, type BackendTransactionType } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const MainView: React.FC = () => {
+interface MainViewProps {
+  onLogout?: () => void;
+}
+
+const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
   const insets = useSafeAreaInsets();
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
   const [amount, setAmount] = useState('0');
@@ -41,7 +48,10 @@ const MainView: React.FC = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Дебетовая карта');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<{ id: number; name: string } | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<{ id: number; name: string } | null>(null);
+  const [analytics, setAnalytics] = useState<TransactionsAnalyticsResponse | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   
   // Анимация плавного перелива цвета для "ИИ"
   const colorAnim = useRef(new Animated.Value(0)).current;
@@ -104,6 +114,46 @@ const MainView: React.FC = () => {
     };
   }, []);
 
+  const timezoneName = useMemo(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tz = (Intl as any)?.DateTimeFormat?.().resolvedOptions?.().timeZone;
+      return tz || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }, []);
+
+  const loadAnalytics = async () => {
+    setLoadingAnalytics(true);
+    try {
+      const res = await apiService.getTransactionsAnalytics({ timezone: timezoneName });
+      setAnalytics(res);
+    } catch (e: any) {
+      // backend may be temporarily unavailable
+      setAnalytics({
+        period: { from: new Date().toISOString(), to: new Date().toISOString(), timezone: timezoneName },
+        totals: { income: 0, expense: 0, total: 0 },
+        donutChart: { incomePercent: 0, expensePercent: 0 },
+        breakdown: { income: [], expense: [] },
+      });
+      console.warn('[Main] analytics load failed', e?.message);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const formatRub = (value: number) => {
+    const abs = Math.abs(value);
+    const formatted = abs.toLocaleString('ru-RU');
+    return `${value < 0 ? '-' : ''}${formatted}₽`;
+  };
+
   // Navigation function
   const handleNavigate = (screen: 'main' | 'deposits' | 'goals' | 'investments' | 'profile') => {
     setShowDepositsAndCredits(false);
@@ -145,6 +195,10 @@ const MainView: React.FC = () => {
         <ProfileView
           onBack={() => setShowProfile(false)}
           onNavigate={handleNavigate}
+          onLogout={() => {
+            setShowProfile(false);
+            onLogout?.();
+          }}
         />
       );
     }
@@ -231,6 +285,7 @@ const MainView: React.FC = () => {
         <CategoriesView
           type={transactionType}
           onBack={() => setShowCategories(false)}
+          onSelect={(category) => setSelectedCategory(category)}
         />
       );
     }
@@ -275,7 +330,11 @@ const MainView: React.FC = () => {
           >
             <Text style={styles.summaryTitle}>Доходы</Text>
             <Text style={styles.summarySubtitle}>за месяц</Text>
-            <Text style={styles.summaryAmount}>65 000₽</Text>
+            {loadingAnalytics ? (
+              <ActivityIndicator />
+            ) : (
+              <Text style={styles.summaryAmount}>{formatRub(analytics?.totals.income || 0)}</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.summaryCard, styles.summaryCardRight]}
@@ -283,7 +342,13 @@ const MainView: React.FC = () => {
           >
             <Text style={styles.summaryTitle}>Расходы</Text>
             <Text style={styles.summarySubtitle}>за месяц</Text>
-            <Text style={[styles.summaryAmount, styles.expenseAmount]}>-20 000₽</Text>
+            {loadingAnalytics ? (
+              <ActivityIndicator />
+            ) : (
+              <Text style={[styles.summaryAmount, styles.expenseAmount]}>
+                {formatRub(-(analytics?.totals.expense || 0))}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -312,7 +377,10 @@ const MainView: React.FC = () => {
                 ? styles.transactionTypeButtonActive 
                 : styles.transactionTypeButtonInactive
             ]}
-            onPress={() => setTransactionType('income')}
+            onPress={() => {
+              setTransactionType('income');
+              setSelectedCategory(null);
+            }}
           >
             <Text style={[
               transactionType === 'income' 
@@ -330,7 +398,10 @@ const MainView: React.FC = () => {
                 ? styles.transactionTypeButtonExpenseActive 
                 : styles.transactionTypeButtonExpense
             ]}
-            onPress={() => setTransactionType('expense')}
+            onPress={() => {
+              setTransactionType('expense');
+              setSelectedCategory(null);
+            }}
           >
             <Text style={[
               transactionType === 'expense' 
@@ -348,7 +419,10 @@ const MainView: React.FC = () => {
           onPress={() => setShowCategories(true)}
         >
           <Text style={styles.detailFieldLabel}>Категория</Text>
-          <Text style={styles.detailFieldArrow}>›</Text>
+          <View style={styles.detailFieldValue}>
+            <Text style={styles.detailFieldValueText}>{selectedCategory?.name || 'Выбрать'}</Text>
+            <Text style={[styles.detailFieldArrow, { marginLeft: 8 }]}>›</Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity 
           style={styles.detailField}
@@ -356,13 +430,50 @@ const MainView: React.FC = () => {
         >
           <Text style={styles.detailFieldLabel}>Способ оплаты</Text>
           <View style={styles.detailFieldValue}>
-            <Text style={styles.detailFieldValueText}>{selectedPaymentMethod}</Text>
+            <Text style={styles.detailFieldValueText}>{selectedPaymentMethod?.name || 'Выбрать'}</Text>
             <Text style={[styles.detailFieldArrow, { marginLeft: 8 }]}>›</Text>
           </View>
         </TouchableOpacity>
 
         {/* Add Button */}
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => {
+            void (async () => {
+              const parsed = Number(String(amount).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!Number.isFinite(parsed) || parsed <= 0) {
+                Alert.alert('Ошибка', 'Введите сумму больше 0');
+                return;
+              }
+              if (!selectedCategory) {
+                Alert.alert('Ошибка', 'Выберите категорию');
+                return;
+              }
+              if (!selectedPaymentMethod) {
+                Alert.alert('Ошибка', 'Выберите способ оплаты');
+                return;
+              }
+              const type: BackendTransactionType = transactionType === 'income' ? 'INCOME' : 'EXPENSE';
+              try {
+                await apiService.createTransaction({
+                  type,
+                  amount: parsed,
+                  occurredAt: new Date().toISOString(),
+                  currency: 'RUB',
+                  categoryId: selectedCategory.id,
+                  paymentMethodId: selectedPaymentMethod.id,
+                });
+                setAmount('0');
+                setSelectedCategory(null);
+                setSelectedPaymentMethod(null);
+                await loadAnalytics();
+                Alert.alert('Успех', 'Операция добавлена');
+              } catch (e: any) {
+                Alert.alert('Ошибка', e?.message || 'Не удалось добавить операцию');
+              }
+            })();
+          }}
+        >
           <Text style={styles.addButtonText}>Добавить</Text>
         </TouchableOpacity>
 

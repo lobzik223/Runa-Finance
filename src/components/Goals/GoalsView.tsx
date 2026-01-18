@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   StyleSheet,
   Dimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddGoalView from './AddGoalView';
 import EditGoalView from './EditGoalView';
+import { apiService, type Goal } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -22,11 +24,36 @@ const GoalsView: React.FC<GoalsViewProps> = ({ onBack, onNavigate }) => {
   const insets = useSafeAreaInsets();
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [showEditGoal, setShowEditGoal] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [displayMode, setDisplayMode] = useState<'percent' | 'rubles'>('percent');
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const res = await apiService.listGoals();
+      setGoals(res);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void reload();
+  }, []);
+
+  const activeGoals = useMemo(() => goals.filter((g) => g.status === 'ACTIVE'), [goals]);
 
   if (showEditGoal) {
     return (
       <EditGoalView
-        onBack={() => setShowEditGoal(false)}
+        goal={selectedGoal}
+        onBack={async (updated) => {
+          setShowEditGoal(false);
+          setSelectedGoal(null);
+          if (updated) await reload();
+        }}
       />
     );
   }
@@ -34,7 +61,10 @@ const GoalsView: React.FC<GoalsViewProps> = ({ onBack, onNavigate }) => {
   if (showAddGoal) {
     return (
       <AddGoalView
-        onBack={() => setShowAddGoal(false)}
+        onBack={async (created) => {
+          setShowAddGoal(false);
+          if (created) await reload();
+        }}
       />
     );
   }
@@ -59,49 +89,91 @@ const GoalsView: React.FC<GoalsViewProps> = ({ onBack, onNavigate }) => {
 
       {/* Main Content */}
       <View style={[styles.content, { paddingTop: 24, paddingBottom: insets.bottom + 100 }]}>
-        {/* Goal Card */}
-        <View style={styles.goalCard}>
-          {/* Goal Title */}
-          <Text style={styles.goalTitle}>Путешествие в Тайланд</Text>
-          
-          {/* Goal Details */}
-          <View style={styles.goalDetails}>
-            <Text style={styles.goalDetailText}>
-              <Text style={styles.goalDetailLabel}>Цель: </Text>
-              <Text style={styles.goalDetailValue}>200 000₽</Text>
-            </Text>
-            <Text style={styles.goalDetailText}>
-              <Text style={styles.goalDetailLabel}>Накоплено: </Text>
-              <Text style={styles.goalDetailValue}>45 000₽</Text>
-            </Text>
-            <Text style={styles.goalDetailText}>
-              <Text style={styles.goalDetailLabel}>Осталось: </Text>
-              <Text style={styles.goalDetailValue}>155 000₽</Text>
-            </Text>
-          </View>
-
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBarWrapper}>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressBarFilled, { width: '25%' }]} />
-                <View style={styles.progressBarRemaining} />
-              </View>
-            </View>
-            <View style={styles.progressLabels}>
-              <Text style={styles.progressLabelFilled}>25%</Text>
-              <Text style={styles.progressLabelRemaining}>75%</Text>
-            </View>
-          </View>
-
-          {/* Edit Button */}
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={() => setShowEditGoal(true)}
+        {/* Display Mode Toggle */}
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+          <TouchableOpacity
+            style={[styles.editButton, { flex: 1, backgroundColor: displayMode === 'percent' ? '#1D4981' : '#D4C5B0' }]}
+            onPress={() => setDisplayMode('percent')}
           >
-            <Text style={styles.editButtonText}>Редактировать</Text>
+            <Text style={[styles.editButtonText, { color: displayMode === 'percent' ? '#FFFFFF' : '#333333' }]}>
+              Проценты
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.editButton, { flex: 1, backgroundColor: displayMode === 'rubles' ? '#1D4981' : '#D4C5B0' }]}
+            onPress={() => setDisplayMode('rubles')}
+          >
+            <Text style={[styles.editButtonText, { color: displayMode === 'rubles' ? '#FFFFFF' : '#333333' }]}>
+              Рубли
+            </Text>
           </TouchableOpacity>
         </View>
+
+        {loading ? (
+          <View style={{ paddingTop: 30, alignItems: 'center' }}>
+            <ActivityIndicator />
+          </View>
+        ) : activeGoals.length === 0 ? (
+          <View style={{ paddingTop: 20 }}>
+            <Text style={{ color: '#FFFFFF', fontWeight: '600', opacity: 0.9 }}>
+              Пока нет целей — нажми «+», чтобы создать первую.
+            </Text>
+          </View>
+        ) : (
+          activeGoals.map((g) => {
+            const pct = Math.round(g.progressPercent);
+            return (
+              <View key={g.id} style={styles.goalCard}>
+                <Text style={styles.goalTitle}>{g.name}</Text>
+
+                <View style={styles.goalDetails}>
+                  <Text style={styles.goalDetailText}>
+                    <Text style={styles.goalDetailLabel}>Цель: </Text>
+                    <Text style={styles.goalDetailValue}>{g.targetAmount.toLocaleString('ru-RU')}₽</Text>
+                  </Text>
+                  <Text style={styles.goalDetailText}>
+                    <Text style={styles.goalDetailLabel}>Накоплено: </Text>
+                    <Text style={styles.goalDetailValue}>{g.currentAmount.toLocaleString('ru-RU')}₽</Text>
+                  </Text>
+                  <Text style={styles.goalDetailText}>
+                    <Text style={styles.goalDetailLabel}>Осталось: </Text>
+                    <Text style={styles.goalDetailValue}>{g.remainingAmount.toLocaleString('ru-RU')}₽</Text>
+                  </Text>
+                </View>
+
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressBarWrapper}>
+                    <View style={styles.progressBar}>
+                      <View style={[styles.progressBarFilled, { width: `${pct}%` }]} />
+                      <View style={styles.progressBarRemaining} />
+                    </View>
+                  </View>
+                  {displayMode === 'percent' ? (
+                    <View style={styles.progressLabels}>
+                      <Text style={styles.progressLabelFilled}>{pct}%</Text>
+                      <Text style={styles.progressLabelRemaining}>{Math.max(0, 100 - pct)}%</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.progressLabels}>
+                      <Text style={styles.progressLabelFilled}>{g.currentAmount.toLocaleString('ru-RU')}₽</Text>
+                      <Text style={styles.progressLabelRemaining}>{g.remainingAmount.toLocaleString('ru-RU')}₽</Text>
+                    </View>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => {
+                    setSelectedGoal(g);
+                    setShowEditGoal(true);
+                  }}
+                >
+                  <Text style={styles.editButtonText}>Управление</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })
+        )}
       </View>
     </View>
   );

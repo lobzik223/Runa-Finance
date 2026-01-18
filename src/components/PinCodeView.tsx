@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService } from '../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -18,38 +20,102 @@ interface PinCodeViewProps {
 const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
   const insets = useSafeAreaInsets();
   const [pin, setPin] = useState<string[]>([]);
+  const [confirmPin, setConfirmPin] = useState<string[]>([]);
+  const [step, setStep] = useState<'enter' | 'confirm'>(mode === 'create' ? 'enter' : 'enter');
+  const [pinLength, setPinLength] = useState<4 | 6>(4);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const activeDigits = useMemo(() => {
+    return mode === 'create' && step === 'confirm' ? confirmPin : pin;
+  }, [mode, step, confirmPin, pin]);
+
+  const resetAll = () => {
+    setPin([]);
+    setConfirmPin([]);
+    setStep(mode === 'create' ? 'enter' : 'enter');
+  };
+
+  const submitEnter = async (digits: string[]) => {
+    const value = digits.join('');
+    if (mode === 'enter') {
+      setSubmitting(true);
+      try {
+        await apiService.verifyPin({ pin: value });
+        onComplete?.();
+      } catch (e: any) {
+        Alert.alert('PIN', e?.message || 'Неверный PIN');
+        resetAll();
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // create mode: move to confirm
+    setStep('confirm');
+  };
+
+  const submitConfirm = async (digits: string[]) => {
+    const value = digits.join('');
+    if (value !== pin.join('')) {
+      Alert.alert('PIN', 'PIN не совпадает. Попробуйте ещё раз.');
+      setPin([]);
+      setConfirmPin([]);
+      setStep('enter');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiService.setPin({ pin: value, pinLength, biometricEnabled });
+      onComplete?.();
+    } catch (e: any) {
+      Alert.alert('PIN', e?.message || 'Не удалось установить PIN');
+      resetAll();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleNumberPress = (number: string) => {
-    if (pin.length < 4) {
-      const newPin = [...pin, number];
-      setPin(newPin);
-      
-      if (newPin.length === 4) {
-        // Автоматически переходим дальше после ввода 4 цифр
-        setTimeout(() => {
-          if (onComplete) {
-            onComplete();
-          }
-        }, 300);
-      }
+    if (submitting) return;
+    const current = activeDigits;
+    if (current.length >= pinLength) return;
+
+    const next = [...current, number];
+    if (mode === 'create' && step === 'confirm') setConfirmPin(next);
+    else setPin(next);
+
+    if (next.length === pinLength) {
+      setTimeout(() => {
+        if (mode === 'create' && step === 'confirm') {
+          void submitConfirm(next);
+        } else {
+          void submitEnter(next);
+        }
+      }, 200);
     }
   };
 
   const handleDelete = () => {
-    if (pin.length > 0) {
-      setPin(pin.slice(0, -1));
-    }
+    if (submitting) return;
+    const current = activeDigits;
+    if (current.length === 0) return;
+    const next = current.slice(0, -1);
+    if (mode === 'create' && step === 'confirm') setConfirmPin(next);
+    else setPin(next);
   };
 
   const renderPinDots = () => {
     return (
       <View style={styles.pinContainer}>
-        {[0, 1, 2, 3].map((index) => (
+        {Array.from({ length: pinLength }).map((_, index) => (
           <View
             key={index}
             style={[
               styles.pinDot,
-              pin.length > index && styles.pinDotFilled,
+              activeDigits.length > index && styles.pinDotFilled,
             ]}
           />
         ))}
@@ -80,9 +146,9 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
                     key={colIndex}
                     style={styles.keypadButton}
                     onPress={handleDelete}
-                    disabled={pin.length === 0}
+                    disabled={activeDigits.length === 0 || submitting}
                   >
-                    <Text style={[styles.keypadText, pin.length === 0 && styles.keypadTextDisabled]}>
+                    <Text style={[styles.keypadText, (activeDigits.length === 0 || submitting) && styles.keypadTextDisabled]}>
                       ⌫
                     </Text>
                   </TouchableOpacity>
@@ -94,9 +160,9 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
                   key={colIndex}
                   style={styles.keypadButton}
                   onPress={() => handleNumberPress(item)}
-                  disabled={pin.length >= 4}
+                  disabled={activeDigits.length >= pinLength || submitting}
                 >
-                  <Text style={[styles.keypadText, pin.length >= 4 && styles.keypadTextDisabled]}>
+                  <Text style={[styles.keypadText, (activeDigits.length >= pinLength || submitting) && styles.keypadTextDisabled]}>
                     {item}
                   </Text>
                 </TouchableOpacity>
@@ -121,8 +187,36 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
         ]}
       >
         <Text style={styles.title}>
-          {mode === 'create' ? 'Создайте пин-код' : 'Введите пин-код'}
+          {mode === 'create'
+            ? (step === 'confirm' ? 'Повторите PIN' : 'Создайте PIN')
+            : 'Введите PIN'}
         </Text>
+
+        {mode === 'create' && step === 'enter' && (
+          <View style={styles.optionsRow}>
+            <TouchableOpacity
+              style={[styles.optionPill, pinLength === 4 && styles.optionPillActive]}
+              onPress={() => setPinLength(4)}
+              disabled={submitting || pin.length > 0}
+            >
+              <Text style={[styles.optionText, pinLength === 4 && styles.optionTextActive]}>4 цифры</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionPill, pinLength === 6 && styles.optionPillActive]}
+              onPress={() => setPinLength(6)}
+              disabled={submitting || pin.length > 0}
+            >
+              <Text style={[styles.optionText, pinLength === 6 && styles.optionTextActive]}>6 цифр</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionPill, biometricEnabled && styles.optionPillActive]}
+              onPress={() => setBiometricEnabled((v) => !v)}
+              disabled={submitting}
+            >
+              <Text style={[styles.optionText, biometricEnabled && styles.optionTextActive]}>Биометрия</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {renderPinDots()}
 
@@ -165,6 +259,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 80,
     gap: 24,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 24,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  optionPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'transparent',
+  },
+  optionPillActive: {
+    backgroundColor: '#1D4981',
+    borderColor: '#1D4981',
+  },
+  optionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  optionTextActive: {
+    color: '#FFFFFF',
   },
   pinDot: {
     width: 16,

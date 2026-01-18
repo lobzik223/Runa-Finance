@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,22 +7,95 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  Alert,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReferralView from './ReferralView';
 import PremiumView from './PremiumView';
+import PrivacyPolicyView from './PrivacyPolicyView';
+import { apiService, type User } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface ProfileViewProps {
   onBack?: () => void;
   onNavigate?: (screen: 'main' | 'deposits' | 'goals' | 'investments' | 'profile') => void;
+  onLogout?: () => void;
 }
 
-const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout }) => {
   const insets = useSafeAreaInsets();
   const [showReferral, setShowReferral] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const fetchUser = async (alive: boolean) => {
+    const cached = await apiService.getUser();
+    if (alive) {
+      setUser(cached);
+      if (cached) setNewName(cached.name);
+    }
+    // Refresh from backend if possible
+    try {
+      const token = await apiService.getToken();
+      if (!token) return;
+      const me = await apiService.getMe();
+      await apiService.saveUser(me.user);
+      if (alive) {
+        setUser(me.user);
+        setNewName(me.user.name);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    let alive = true;
+    void fetchUser(alive);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleUpdateName = async () => {
+    if (!newName.trim()) {
+      Alert.alert('Ошибка', 'Введите имя');
+      return;
+    }
+    if (newName.trim().length > 15) {
+      Alert.alert('Ошибка', 'Имя должно быть не длиннее 15 символов');
+      return;
+    }
+    if (newName.trim() === user?.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await apiService.updateProfile({ name: newName.trim() });
+      await apiService.saveUser(res.user);
+      setUser(res.user);
+      setNewName(res.user.name);
+      setIsEditingName(false);
+      Alert.alert('Успех', 'Имя обновлено');
+    } catch (e: any) {
+      Alert.alert('Ошибка', e.message || 'Не удалось обновить имя');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setNewName(user?.name || '');
+    setIsEditingName(false);
+  };
 
   if (showReferral) {
     return <ReferralView onBack={() => setShowReferral(false)} />;
@@ -30,6 +103,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate }) => {
 
   if (showPremium) {
     return <PremiumView onBack={() => setShowPremium(false)} />;
+  }
+
+  if (showPrivacy) {
+    return <PrivacyPolicyView onBack={() => setShowPrivacy(false)} />;
   }
 
   return (
@@ -60,18 +137,62 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate }) => {
             </View>
 
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>Вася</Text>
-              <Text style={styles.proStatus}>PRO</Text>
-              <Text style={styles.userEmail}>vasya@gmail.com</Text>
+              {isEditingName ? (
+                <TextInput
+                  style={styles.userNameInput}
+                  value={newName}
+                  onChangeText={setNewName}
+                  autoFocus
+                  maxLength={15}
+                  placeholder="Новое имя"
+                  editable={!saving}
+                />
+              ) : (
+                <Text style={styles.userName}>{user?.name || 'Пользователь'}</Text>
+              )}
+              <Text style={styles.userEmail}>{user?.email || ''}</Text>
             </View>
 
             <View style={styles.actionButtonsContainer}>
-              <TouchableOpacity style={styles.logoutButton}>
-                <Text style={styles.logoutButtonText}>Выйти</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.editButton}>
-                <Text style={styles.editButtonText}>Редактировать</Text>
-              </TouchableOpacity>
+              {isEditingName ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.logoutButton, { backgroundColor: '#6B7A9A' }]}
+                    onPress={handleCancelEditName}
+                    disabled={saving}
+                  >
+                    <Text style={styles.logoutButtonText}>Отмена</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.editButton, { backgroundColor: '#4CAF50' }]} 
+                    onPress={handleUpdateName}
+                    disabled={saving}
+                  >
+                    <Text style={styles.editButtonText}>{saving ? '...' : 'Сохранить'}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.logoutButton}
+                    disabled={saving}
+                    onPress={() => {
+                      void (async () => {
+                        await apiService.clearAuth();
+                        onLogout?.();
+                      })();
+                    }}
+                  >
+                    <Text style={styles.logoutButtonText}>Выйти</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.editButton} 
+                    onPress={() => setIsEditingName(true)}
+                  >
+                    <Text style={styles.editButtonText}>Редактировать</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -108,7 +229,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate }) => {
             <Text style={styles.optionArrow}>→</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionItem}>
+          <TouchableOpacity 
+            style={styles.optionItem}
+            onPress={() => setShowPrivacy(true)}
+          >
             <View style={styles.optionLeft}>
               <Image source={require('../icon/home.png')} style={styles.smallIcon} tintColor="#333" />
               <Text style={styles.optionText}>Политика конфиденциальности</Text>
@@ -196,6 +320,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000000',
     marginBottom: 4,
+  },
+  userNameInput: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1D4981',
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1D4981',
+    paddingHorizontal: 10,
+    textAlign: 'center',
+    minWidth: 150,
   },
   proStatus: {
     fontSize: 16,

@@ -9,8 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService } from '../services/api';
+import { AppleIcon } from './common/icons/AppleIcon';
+import { GoogleIcon } from './common/icons/GoogleIcon';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -24,6 +30,79 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleRegistration = async () => {
+    // Валидация
+    if (!name.trim()) {
+      Alert.alert('Ошибка', 'Введите имя');
+      return;
+    }
+    if (name.trim().length > 15) {
+      Alert.alert('Ошибка', 'Имя должно быть не длиннее 15 символов');
+      return;
+    }
+
+    if (!email.trim()) {
+      Alert.alert('Ошибка', 'Введите email');
+      return;
+    }
+
+    if (!email.includes('@')) {
+      Alert.alert('Ошибка', 'Введите корректный email');
+      return;
+    }
+
+    if (!password) {
+      Alert.alert('Ошибка', 'Введите пароль');
+      return;
+    }
+
+    if (password.length < 8) {
+      Alert.alert('Ошибка', 'Пароль должен содержать минимум 8 символов');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      console.log('[Registration] Начало регистрации:', { name, email });
+      
+      // Подготовка данных для регистрации
+      const registerData: any = {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      };
+      
+      // Добавляем referralCode только если он не пустой
+      const trimmedReferralCode = referralCode.trim();
+      if (trimmedReferralCode) {
+        registerData.referralCode = trimmedReferralCode;
+      }
+      
+      const response = await apiService.register(registerData);
+
+      console.log('[Registration] Успешная регистрация:', response.user);
+      Alert.alert('Успех', `Добро пожаловать, ${response.user.name}!`, [
+        {
+          text: 'OK',
+          onPress: () => {
+            if (onComplete) {
+              onComplete();
+            }
+          },
+        },
+      ]);
+    } catch (error: any) {
+      console.error('[Registration] Ошибка регистрации:', error);
+      const errorMessage = error.message || 'Ошибка при регистрации. Попробуйте еще раз.';
+      Alert.alert('Ошибка регистрации', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -36,21 +115,23 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View
-          style={[
+        <ScrollView
+          contentContainerStyle={[
             styles.content,
-            { paddingTop: insets.top + 120, paddingBottom: insets.bottom + 20 },
+            { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 20 },
           ]}
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoContainer}>
             <Image
               source={require('../../images/runalogo.png')}
               style={styles.logo}
               resizeMode="contain"
+              accessibilityLabel="Логотип RUNA"
             />
           </View>
 
-          <Text style={styles.title}>Зарегистрируйтесь</Text>
+          <Text style={styles.title}>Регистрация</Text>
 
           <View style={styles.inputContainer}>
             <TextInput
@@ -60,6 +141,9 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
               value={name}
               onChangeText={setName}
               autoCapitalize="words"
+              autoCorrect={false}
+              maxLength={15}
+              editable={!loading}
             />
           </View>
 
@@ -73,6 +157,7 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!loading}
             />
           </View>
 
@@ -85,20 +170,34 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
               onChangeText={setPassword}
               secureTextEntry
               autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Реферальный код (необязательно)"
+              placeholderTextColor="#999"
+              value={referralCode}
+              onChangeText={setReferralCode}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
             />
           </View>
 
           <TouchableOpacity 
-            style={styles.primaryButton}
-            onPress={() => {
-              // Переход на экран PIN-кода при любых данных (без валидации)
-              // Данные не сохраняются, используются только для демонстрации
-              if (onComplete) {
-                onComplete();
-              }
-            }}
+            style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+            onPress={handleRegistration}
+            disabled={loading}
           >
-            <Text style={styles.primaryButtonText}>Создать аккаунт</Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Зарегистрироваться</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.separator}>
@@ -114,9 +213,12 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
                 onComplete();
               }
             }}
+            disabled={loading}
           >
-            <Text style={styles.appleIcon}>🍎</Text>
-            <Text style={styles.socialButtonText}>Войти с помощью Apple</Text>
+            <View style={styles.socialIcon}>
+              <AppleIcon size={20} color="#FFFFFF" />
+            </View>
+            <Text style={styles.socialButtonText}>Зарегистрироваться с Apple</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -126,18 +228,21 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
                 onComplete();
               }
             }}
+            disabled={loading}
           >
-            <Text style={styles.googleIcon}>G</Text>
-            <Text style={styles.socialButtonText}>Войти с помощью Google</Text>
+            <View style={[styles.socialIcon, styles.socialIconWhite]}>
+              <GoogleIcon size={20} />
+            </View>
+            <Text style={styles.socialButtonText}>Зарегистрироваться с Google</Text>
           </TouchableOpacity>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Уже есть аккаунт? </Text>
-            <TouchableOpacity onPress={onNavigateToLogin}>
+            <TouchableOpacity onPress={onNavigateToLogin} disabled={loading}>
               <Text style={styles.footerLink}>Войти</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -162,7 +267,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: 24,
   },
@@ -204,6 +309,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
   },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
   primaryButtonText: {
     fontSize: 17,
     fontWeight: '600',
@@ -237,21 +345,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 16,
   },
-  appleIcon: {
-    fontSize: 20,
+  socialIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4285F4',
-    marginRight: 12,
+  socialIconWhite: {
     backgroundColor: '#FFFFFF',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    textAlign: 'center',
-    lineHeight: 24,
   },
   socialButtonText: {
     fontSize: 16,
@@ -278,4 +381,3 @@ const styles = StyleSheet.create({
 });
 
 export default RegistrationView;
-

@@ -8,8 +8,10 @@ import {
   Switch,
   Dimensions,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -26,6 +28,11 @@ const AddCreditView: React.FC<AddCreditViewProps> = ({ onBack }) => {
   const [interestRate, setInterestRate] = useState('');
   const [monthlyPayment, setMonthlyPayment] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
+
+  const parseNum = (v: string) => {
+    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  };
 
   return (
     <View style={styles.wrapper}>
@@ -158,7 +165,58 @@ const AddCreditView: React.FC<AddCreditViewProps> = ({ onBack }) => {
 
         {/* Add Button */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.addButton}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              void (async () => {
+                const name = creditName.trim();
+                if (!name) {
+                  Alert.alert('Ошибка', 'Введите название');
+                  return;
+                }
+
+                const amount = parseNum(creditAmount);
+                if (!Number.isFinite(amount) || amount <= 0) {
+                  Alert.alert('Ошибка', 'Введите сумму больше 0');
+                  return;
+                }
+
+                const rate = interestRate ? parseNum(interestRate) : NaN;
+                const minPay = monthlyPayment ? parseNum(monthlyPayment) : NaN;
+                const day = paymentDate ? parseInt(paymentDate.replace(/[^\d]/g, ''), 10) : NaN;
+
+                try {
+                  if (activeTab === 'card') {
+                    // CREDIT CARD: amount = limit, balance starts at 0
+                    await apiService.createCreditAccount({
+                      kind: 'CREDIT_CARD',
+                      name,
+                      creditLimit: amount,
+                      currentBalance: 0,
+                      ...(Number.isFinite(day) ? { billingDay: day } : {}),
+                      ...(Number.isFinite(rate) ? { interestRate: rate } : {}),
+                    });
+                  } else {
+                    // LOAN: amount = current debt/principal
+                    await apiService.createCreditAccount({
+                      kind: 'LOAN',
+                      name,
+                      principal: amount,
+                      currentBalance: amount,
+                      ...(Number.isFinite(rate) ? { interestRate: rate } : {}),
+                      ...(Number.isFinite(day) ? { paymentDay: day } : {}),
+                      ...(Number.isFinite(minPay) ? { minimumPayment: minPay } : {}),
+                    });
+                  }
+
+                  Alert.alert('Успех', 'Добавлено');
+                  onBack?.();
+                } catch (e: any) {
+                  Alert.alert('Ошибка', e?.message || 'Не удалось добавить');
+                }
+              })();
+            }}
+          >
             <Text style={styles.addButtonText}>Добавить кредит</Text>
           </TouchableOpacity>
         </View>

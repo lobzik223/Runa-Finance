@@ -88,7 +88,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onBack }) => {
             onPress={() => setSelectedPlan('1month')}
           >
             <Text style={[styles.planDuration, selectedPlan === '1month' && styles.textWhite]}>1 месяц</Text>
-            <Text style={styles.planPrice}>400 Р</Text>
+            <Text style={styles.planPrice}>400 ₽</Text>
             <Text style={[styles.planSubtext, selectedPlan === '1month' && styles.textWhite]}>Месяц полного доступа</Text>
           </TouchableOpacity>
 
@@ -97,9 +97,9 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onBack }) => {
             onPress={() => setSelectedPlan('6months')}
           >
             <Text style={[styles.planDuration, selectedPlan === '6months' && styles.textWhite]}>6 месяцев</Text>
-            <Text style={styles.planPrice}>1800 Р</Text>
+            <Text style={styles.planPrice}>1800 ₽</Text>
             <Text style={[styles.planSubtext, selectedPlan === '6months' && styles.textWhite]}>Лучший выбор</Text>
-            <Text style={styles.planSavings}>Экономия 600 Р</Text>
+            <Text style={styles.planSavings}>Экономия 600 ₽</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -107,9 +107,9 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onBack }) => {
             onPress={() => setSelectedPlan('1year')}
           >
             <Text style={[styles.planDuration, selectedPlan === '1year' && styles.textWhite]}>1 год</Text>
-            <Text style={styles.planPrice}>2500 Р</Text>
+            <Text style={styles.planPrice}>2500 ₽</Text>
             <Text style={[styles.planSubtext, selectedPlan === '1year' && styles.textWhite]}>Максимальная выгода</Text>
-            <Text style={styles.planSavings}>Экономия 2300 Р</Text>
+            <Text style={[styles.planSavings, selectedPlan === '1year' && styles.planSavingsActive]}>Экономия 2300 ₽</Text>
           </TouchableOpacity>
         </View>
 
@@ -221,10 +221,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FDEBD0',
     borderRadius: 16,
-    padding: 12,
+    padding: 16,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 140,
+    minHeight: 150,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -239,23 +238,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
     textAlign: 'center',
+    marginBottom: 4,
   },
   planPrice: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: '#A0522D',
     marginVertical: 8,
   },
   planSubtext: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#333',
     textAlign: 'center',
+    marginBottom: 4,
   },
   planSavings: {
     fontSize: 11,
     fontWeight: '700',
     color: '#2E7D32',
-    marginTop: 8,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  planSavingsActive: {
+    color: '#A5D6A7',
   },
   textWhite: {
     color: '#FFFFFF',

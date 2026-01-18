@@ -8,6 +8,7 @@ import RegistrationView from './src/components/RegistrationView';
 import LoginView from './src/components/LoginView';
 import PinCodeView from './src/components/PinCodeView';
 import MainView from './src/components/MainView';
+import { apiService } from './src/services/api';
 
 type ScreenType = 'loading' | 'login' | 'registration' | 'pincode' | 'main';
 
@@ -26,8 +27,18 @@ export default function App() {
   };
 
   const handleLoginComplete = () => {
-    setPinCodeMode('enter');
-    handleNavigate('pincode');
+    // После логина проверяем: есть ли PIN. Если нет — создаём.
+    void (async () => {
+      try {
+        const status = await apiService.getPinStatus();
+        setPinCodeMode(status.pinSet ? 'enter' : 'create');
+        handleNavigate('pincode');
+      } catch {
+        // Если бэкенд недоступен — fallback на ввод PIN (UX), но без проверки.
+        setPinCodeMode('enter');
+        handleNavigate('pincode');
+      }
+    })();
   };
 
   const handleRegistrationComplete = () => {
@@ -74,7 +85,7 @@ export default function App() {
         )}
         {currentScreen === 'main' && (
           <View key="main" style={styles.animatedContainer}>
-            <MainView />
+            <MainView onLogout={() => handleNavigate('login')} />
           </View>
         )}
       </View>
