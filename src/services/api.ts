@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 const getApiBaseUrl = (): string => {
   if (!__DEV__) {
     // Production URL
-    return 'https://your-production-api.com/api';
+    return 'https://api.runafinance.online/api';
   }
 
   // Можно переопределить через переменную окружения
@@ -661,10 +661,6 @@ class ApiService {
     });
   }
 
-  async getTinkoffPrice(figi: string): Promise<{ success: boolean; price?: number; currency?: string; error?: string }> {
-    const queryParams = this.buildQuery({ figi });
-    return await this.request(`/tinkoff-invest/price${queryParams}`);
-  }
 
   async getMarketNews(limit: number = 10): Promise<MarketNewsItem[]> {
     const query = this.buildQuery({ limit });
@@ -734,85 +730,6 @@ class ApiService {
     return await this.request<PinStatusResponse>('/pin/status');
   }
 
-  // Tinkoff Invest integration
-  async setTinkoffToken(params: { token: string; useSandbox?: boolean }): Promise<{ message: string }> {
-    return await this.request<{ message: string }>('/tinkoff-invest/token', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  }
-
-  async removeTinkoffToken(): Promise<void> {
-    return await this.request<void>('/tinkoff-invest/token', {
-      method: 'DELETE',
-    });
-  }
-
-  async getTinkoffPortfolio(): Promise<{
-    success: boolean;
-    account_id?: string;
-    portfolio: Array<{
-      figi: string;
-      ticker: string;
-      name: string;
-      type: string;
-      quantity: number;
-      average_price: number;
-      current_price: number;
-      total_cost: number;
-      current_value: number;
-      pnl: number;
-      pnl_percent: number;
-    }>;
-    total_value: number;
-    total_cost: number;
-    total_pnl: number;
-    total_pnl_percent: number;
-    error?: string;
-  }> {
-    return await this.request('/tinkoff-invest/portfolio');
-  }
-
-  async getTinkoffAccounts(): Promise<{
-    success: boolean;
-    accounts: Array<{
-      id: string;
-      type: string;
-      name: string;
-      status: string;
-      opened_date?: string;
-    }>;
-    error?: string;
-  }> {
-    return await this.request('/tinkoff-invest/accounts');
-  }
-
-  async searchTinkoffInstruments(query: string): Promise<{
-    success: boolean;
-    instruments: Array<{
-      figi: string;
-      ticker: string;
-      name: string;
-      type: string;
-      currency: string;
-    }>;
-    error?: string;
-  }> {
-    const queryParams = this.buildQuery({ query });
-    try {
-      return await this.request(`/tinkoff-invest/search${queryParams}`);
-    } catch (e: any) {
-      // Не падаем UI, если backend ещё не обновлён (404) или временно недоступен
-      const msg = String(e?.message || 'Не удалось выполнить поиск');
-      return { success: false, instruments: [], error: msg };
-    }
-  }
-
-  async syncTinkoffPortfolio(): Promise<{ synced: number; errors: number }> {
-    return await this.request<{ synced: number; errors: number }>(`/tinkoff-invest/sync`, {
-      method: 'POST',
-    });
-  }
 
   // Set PIN (4 or 6 digits)
   async setPin(params: { pin: string; biometricEnabled?: boolean; pinLength?: 4 | 6 }): Promise<{ message: string }> {

@@ -51,25 +51,9 @@ const AssetDetailsView: React.FC<AssetDetailsViewProps> = ({ onBack, assetId, as
   };
 
   const loadCurrentPrice = async (symbol: string) => {
-    setPriceLoading(true);
-    try {
-      // Сначала ищем инструмент чтобы получить FIGI
-      const searchResult = await apiService.searchTinkoffInstruments(symbol);
-      if (searchResult.success && searchResult.instruments.length > 0) {
-        const instrument = searchResult.instruments.find(i => i.ticker === symbol);
-        if (instrument) {
-          const priceResult = await apiService.getTinkoffPrice(instrument.figi);
-          if (priceResult.success && priceResult.price) {
-            setCurrentPrice(priceResult.price);
-          }
-        }
-      }
-    } catch (error: any) {
-      // не ломаем UI, просто показываем "недоступно"
-      console.log('Failed to load current price:', error?.message || error);
-    } finally {
-      setPriceLoading(false);
-    }
+    // Цена недоступна без Tinkoff интеграции
+    setPriceLoading(false);
+    setCurrentPrice(null);
   };
 
   const handleDelete = () => {
