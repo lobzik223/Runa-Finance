@@ -1,33 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Определение базового URL API в зависимости от платформы
+// Определение базового URL API
+// ТОЛЬКО production бекенд или переменная окружения - никаких локальных дефолтов
 const getApiBaseUrl = (): string => {
-  if (!__DEV__) {
-    // Production URL
-    return 'https://api.runafinance.online/api';
-  }
-
-  // Можно переопределить через переменную окружения
+  // ПРИОРИТЕТ 1: Переменная окружения из .env файла
   const customApiUrl = process.env.EXPO_PUBLIC_API_URL;
   if (customApiUrl) {
     return customApiUrl;
   }
 
-  // Development URLs в зависимости от платформы
-  if (Platform.OS === 'android') {
-    // Android эмулятор использует 10.0.2.2 для доступа к localhost хоста
-    // Для физического устройства замените на IP вашего компьютера
-    return 'http://10.0.2.2:3000/api';
-  } else if (Platform.OS === 'ios') {
-    // iOS симулятор на Windows не может использовать localhost для Docker контейнеров
-    // Используем IP адрес хоста (замените на ваш IP если отличается)
-    // Для автоматического определения можно использовать: ipconfig (Windows) или ifconfig (Mac/Linux)
-    return 'http://192.168.0.171:3000/api';
-  } else {
-    // Web или другие платформы
-    return 'http://localhost:3000/api';
-  }
+  // ПРИОРИТЕТ 2: Production URL (всегда, для всех режимов)
+  // Убраны все локальные дефолты - приложение работает только с production бекендом
+  return 'https://api.runafinance.online/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
