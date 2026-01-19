@@ -312,8 +312,9 @@ class ApiService {
       ...(base as Record<string, string> | undefined),
     };
 
-    // Keep in sync with backend default (docker-compose APP_KEY)
-    const appKey = process.env.EXPO_PUBLIC_APP_KEY || 'runa_dev_app_key_change_me';
+    // App-to-backend shared key (защита от случайных запросов).
+    // В production НЕ используем дефолтный ключ — только EXPO_PUBLIC_APP_KEY.
+    const appKey = process.env.EXPO_PUBLIC_APP_KEY || (__DEV__ ? 'runa_dev_app_key_change_me' : '');
     if (appKey) headers['X-Runa-App-Key'] = appKey;
 
     if (token) headers['Authorization'] = `Bearer ${token}`;
