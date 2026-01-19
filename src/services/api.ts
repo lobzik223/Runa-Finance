@@ -603,6 +603,49 @@ class ApiService {
     });
   }
 
+  async updateCreditAccount(id: number, params: {
+    name?: string;
+    principal?: number;
+    currentBalance?: number;
+    creditLimit?: number;
+    billingDay?: number;
+    interestRate?: number;
+    paymentDay?: number;
+    nextPaymentAt?: string;
+    minimumPayment?: number;
+  }): Promise<CreditAccount> {
+    return await this.request<CreditAccount>(`/credit-accounts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(params),
+    });
+  }
+
+  async deleteCreditAccount(id: number): Promise<void> {
+    return await this.request<void>(`/credit-accounts/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateDepositAccount(id: number, params: {
+    name?: string;
+    principal?: number;
+    interestRate?: number;
+    payoutSchedule?: 'MONTHLY' | 'QUARTERLY' | 'AT_MATURITY' | 'CUSTOM';
+    nextPayoutAt?: string;
+    maturityAt?: string;
+  }): Promise<DepositAccount> {
+    return await this.request<DepositAccount>(`/deposit-accounts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(params),
+    });
+  }
+
+  async deleteDepositAccount(id: number): Promise<void> {
+    return await this.request<void>(`/deposit-accounts/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async listGoals(): Promise<Goal[]> {
     return await this.request<Goal[]>('/goals');
   }

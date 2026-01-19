@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,24 +7,114 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService, type CreditAccount, type DepositAccount } from '../../services/api';
+import { formatAmountDisplay } from '../../utils/amountFormatter';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface CreditDetailsViewProps {
   onBack?: () => void;
-  creditTitle?: string;
+  creditId?: number | null;
+  depositId?: number | null;
   mode?: 'credit' | 'deposit';
 }
 
 const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({ 
   onBack,
-  creditTitle = 'Кредит на телефон',
+  creditId,
+  depositId,
   mode,
 }) => {
   const insets = useSafeAreaInsets();
-  const isDeposit = mode === 'deposit' || creditTitle.toLowerCase().includes('вклад');
+  const [loading, setLoading] = useState(true);
+  const [credit, setCredit] = useState<CreditAccount | null>(null);
+  const [deposit, setDeposit] = useState<DepositAccount | null>(null);
+  const isDeposit = mode === 'deposit' || !!depositId;
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        if (isDeposit && depositId) {
+          const accounts = await apiService.listDepositAccounts();
+          const found = accounts.find(a => a.id === depositId);
+          setDeposit(found || null);
+        } else if (!isDeposit && creditId) {
+          const accounts = await apiService.listCreditAccounts();
+          const found = accounts.find(a => a.id === creditId);
+          setCredit(found || null);
+        }
+      } catch (e: any) {
+        Alert.alert('Ошибка', e?.message || 'Не удалось загрузить данные');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadData();
+  }, [creditId, depositId, isDeposit]);
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Удаление',
+      `Удалить ${isDeposit ? 'вклад' : 'кредит'}?`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (isDeposit && depositId) {
+                await apiService.deleteDepositAccount(depositId);
+              } else if (!isDeposit && creditId) {
+                await apiService.deleteCreditAccount(creditId);
+              }
+              Alert.alert('Успех', `${isDeposit ? 'Вклад' : 'Кредит'} удалён`);
+              onBack?.();
+            } catch (e: any) {
+              Alert.alert('Ошибка', e?.message || 'Не удалось удалить');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEdit = () => {
+    Alert.alert('Редактирование', 'Функция редактирования будет добавлена позже');
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.wrapper, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  const account = isDeposit ? deposit : credit;
+  if (!account) {
+    return (
+      <View style={styles.wrapper}>
+        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Детали</Text>
+          </View>
+          <View style={styles.backButton} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 16 }}>Данные не найдены</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -47,72 +137,94 @@ const CreditDetailsView: React.FC<CreditDetailsViewProps> = ({
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.headerSubtitle}>{creditTitle}</Text>
+        <Text style={styles.headerSubtitle}>{account.name}</Text>
 
-        {/* Credit Summary Card */}
+        {/* Summary Card */}
         <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>{isDeposit ? 'Сумма вклада:' : 'Сумма кредита:'}</Text>
-            <Text style={styles.summaryValue}>{isDeposit ? '200 000₽' : '50 000₽'}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>{isDeposit ? 'Ожидаемый доход:' : 'Остаток долга:'}</Text>
-            <Text style={styles.summaryValue}>{isDeposit ? '1 190₽' : '38 000₽'}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>{isDeposit ? 'Начисление процентов:' : 'Следующий платеж:'}</Text>
-            <Text style={styles.summaryValue}>{isDeposit ? '15 марта' : '3 400₽'}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>{isDeposit ? 'Срок:' : 'Дата платежа:'}</Text>
-            <Text style={styles.summaryValue}>{isDeposit ? '12 месяцев' : '30 ноября'}</Text>
-          </View>
-          <View style={[styles.summaryRow, styles.summaryRowLast]}>
-            <Text style={styles.summaryLabel}>Процентная ставка:</Text>
-            <Text style={styles.summaryValue}>12% годовых</Text>
-          </View>
-        </View>
-
-        {/* Payment Schedule Section */}
-        <Text style={styles.sectionTitle}>{isDeposit ? 'График начислений' : 'График платежей'}</Text>
-        
-        <View style={styles.paymentItem}>
-          <View style={styles.paymentIconContainer}>
-            <Text style={styles.paymentIcon}>✓</Text>
-          </View>
-          <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>{isDeposit ? 'Сентябрь — 1 190₽' : 'Сентябрь — 3 400₽'}</Text>
-          </View>
-          <Text style={styles.paymentStatusPaid}>Оплачено</Text>
-        </View>
-
-        <View style={styles.paymentItem}>
-          <View style={styles.paymentIconContainer}>
-            <Text style={styles.paymentIcon}>✓</Text>
-          </View>
-          <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>{isDeposit ? 'Октябрь — 1 190₽' : 'Октябрь — 3 400₽'}</Text>
-          </View>
-          <Text style={styles.paymentStatusPaid}>Оплачено</Text>
-        </View>
-
-        <View style={styles.paymentItem}>
-          <View style={styles.paymentIconContainerPending}>
-            <View style={styles.paymentIconPending} />
-          </View>
-          <View style={styles.paymentContent}>
-            <Text style={styles.paymentMonth}>{isDeposit ? 'Ноябрь — 1 190₽' : 'Ноябрь — 3 400₽'}</Text>
-          </View>
-          <Text style={styles.paymentStatusPending}>Ожидается</Text>
+          {isDeposit ? (
+            <>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Сумма вклада:</Text>
+                <Text style={styles.summaryValue}>{formatAmountDisplay(deposit.principal)}₽</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Процентная ставка:</Text>
+                <Text style={styles.summaryValue}>{deposit.interestRate}% годовых</Text>
+              </View>
+              {deposit.nextPayoutAt && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Следующее начисление:</Text>
+                  <Text style={styles.summaryValue}>
+                    {new Date(deposit.nextPayoutAt).toLocaleDateString('ru-RU', { 
+                      day: 'numeric', 
+                      month: 'long' 
+                    })}
+                  </Text>
+                </View>
+              )}
+              {deposit.maturityAt && (
+                <View style={[styles.summaryRow, styles.summaryRowLast]}>
+                  <Text style={styles.summaryLabel}>Дата окончания:</Text>
+                  <Text style={styles.summaryValue}>
+                    {new Date(deposit.maturityAt).toLocaleDateString('ru-RU', { 
+                      day: 'numeric', 
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>
+                  {credit.kind === 'CREDIT_CARD' ? 'Лимит:' : 'Сумма кредита:'}
+                </Text>
+                <Text style={styles.summaryValue}>
+                  {formatAmountDisplay(credit.kind === 'CREDIT_CARD' ? (credit.creditLimit || 0) : (credit.principal || 0))}₽
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>
+                  {credit.kind === 'CREDIT_CARD' ? 'Долг:' : 'Остаток долга:'}
+                </Text>
+                <Text style={styles.summaryValue}>{formatAmountDisplay(credit.currentBalance)}₽</Text>
+              </View>
+              {credit.minimumPayment && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Следующий платеж:</Text>
+                  <Text style={styles.summaryValue}>{formatAmountDisplay(credit.minimumPayment)}₽</Text>
+                </View>
+              )}
+              {credit.nextPaymentAt && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Дата платежа:</Text>
+                  <Text style={styles.summaryValue}>
+                    {new Date(credit.nextPaymentAt).toLocaleDateString('ru-RU', { 
+                      day: 'numeric', 
+                      month: 'long' 
+                    })}
+                  </Text>
+                </View>
+              )}
+              <View style={[styles.summaryRow, styles.summaryRowLast]}>
+                <Text style={styles.summaryLabel}>Процентная ставка:</Text>
+                <Text style={styles.summaryValue}>
+                  {credit.interestRate ? `${credit.interestRate}% годовых` : '—'}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Action Buttons */}
-        <TouchableOpacity style={styles.editButton}>
+        <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
           <Text style={styles.editButtonText}>Редактировать</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.closeButton}>
-          <Text style={styles.closeButtonText}>{isDeposit ? 'Закрыть вклад' : 'Закрыть кредит'}</Text>
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+          <Text style={styles.deleteButtonText}>Удалить</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -291,7 +403,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  closeButton: {
+  deleteButton: {
     backgroundColor: '#9A031E',
     borderRadius: 20,
     paddingVertical: 16,
@@ -303,7 +415,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  closeButtonText: {
+  deleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',

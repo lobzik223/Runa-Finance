@@ -187,9 +187,39 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
                   return;
                 }
 
-                // Сейчас принимаем дату как YYYY-MM-DD (или ISO). Если пусто — backend сам поставит ближайшую.
-                const nextPayoutAt = interestAccrualDate.trim();
-                const maturity = endDate.trim();
+                // Преобразуем дату начисления процентов в ISO 8601 формат
+                let nextPayoutAt: string | undefined;
+                if (interestAccrualDate.trim()) {
+                  // Если это текст типа "25 число каждого месяца", извлекаем число
+                  const dayMatch = interestAccrualDate.match(/(\d+)/);
+                  if (dayMatch) {
+                    const day = parseInt(dayMatch[1], 10);
+                    if (day >= 1 && day <= 31) {
+                      const now = new Date();
+                      let payoutDate = new Date(now.getFullYear(), now.getMonth(), day);
+                      // Если день уже прошёл в этом месяце, берём следующий месяц
+                      if (payoutDate < now) {
+                        payoutDate = new Date(now.getFullYear(), now.getMonth() + 1, day);
+                      }
+                      nextPayoutAt = payoutDate.toISOString().split('T')[0];
+                    }
+                  } else {
+                    // Если это уже ISO дата, используем как есть
+                    const date = new Date(interestAccrualDate.trim());
+                    if (!isNaN(date.getTime())) {
+                      nextPayoutAt = date.toISOString().split('T')[0];
+                    }
+                  }
+                }
+
+                // Преобразуем дату окончания вклада
+                let maturityAt: string | undefined;
+                if (depositType === 'term' && endDate.trim()) {
+                  const date = new Date(endDate.trim());
+                  if (!isNaN(date.getTime())) {
+                    maturityAt = date.toISOString().split('T')[0];
+                  }
+                }
 
                 try {
                   await apiService.createDepositAccount({
@@ -198,7 +228,7 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
                     interestRate: rate,
                     payoutSchedule: 'MONTHLY',
                     ...(nextPayoutAt ? { nextPayoutAt } : {}),
-                    ...(depositType === 'term' && maturity ? { maturityAt: maturity } : {}),
+                    ...(maturityAt ? { maturityAt } : {}),
                   });
 
                   Alert.alert('Успех', 'Вклад добавлен');

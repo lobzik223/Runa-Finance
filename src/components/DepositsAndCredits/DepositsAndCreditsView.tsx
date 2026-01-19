@@ -29,7 +29,8 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
   const [showCreditDetails, setShowCreditDetails] = useState(false);
   const [showAddCredit, setShowAddCredit] = useState(false);
   const [showAddDeposit, setShowAddDeposit] = useState(false);
-  const [selectedCreditTitle, setSelectedCreditTitle] = useState('Кредит на телефон');
+  const [selectedCreditId, setSelectedCreditId] = useState<number | null>(null);
+  const [selectedDepositId, setSelectedDepositId] = useState<number | null>(null);
   const [selectedDetailsMode, setSelectedDetailsMode] = useState<'credit' | 'deposit'>('credit');
   const [loading, setLoading] = useState(false);
   const [creditAccounts, setCreditAccounts] = useState<CreditAccount[]>([]);
@@ -81,8 +82,12 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
   if (showCreditDetails) {
     return (
       <CreditDetailsView
-        onBack={() => setShowCreditDetails(false)}
-        creditTitle={selectedCreditTitle}
+        onBack={async () => {
+          setShowCreditDetails(false);
+          await reload();
+        }}
+        creditId={selectedCreditId}
+        depositId={selectedDepositId}
         mode={selectedDetailsMode}
       />
     );
@@ -187,7 +192,8 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
                   <TouchableOpacity
                     style={styles.detailsButton}
                     onPress={() => {
-                      setSelectedCreditTitle(loan.name);
+                      setSelectedCreditId(loan.id);
+                      setSelectedDepositId(null);
                       setSelectedDetailsMode('credit');
                       setShowCreditDetails(true);
                     }}
@@ -236,7 +242,8 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
                     <TouchableOpacity
                       style={styles.detailsButton}
                       onPress={() => {
-                        setSelectedCreditTitle(card.name);
+                        setSelectedCreditId(card.id);
+                        setSelectedDepositId(null);
                         setSelectedDetailsMode('credit');
                         setShowCreditDetails(true);
                       }}
@@ -300,7 +307,8 @@ const DepositsAndCreditsView: React.FC<DepositsAndCreditsViewProps> = ({ onBack,
                   <TouchableOpacity
                     style={styles.detailsButton}
                     onPress={() => {
-                      setSelectedCreditTitle(dep.name);
+                      setSelectedDepositId(dep.id);
+                      setSelectedCreditId(null);
                       setSelectedDetailsMode('deposit');
                       setShowCreditDetails(true);
                     }}
