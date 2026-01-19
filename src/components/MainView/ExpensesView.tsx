@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   summaryAmount: {
     fontSize: 48,
     fontWeight: '700',
-    color: '#333333',
+    color: '#A0522D',
     marginBottom: 8,
   },
   summarySubtitle: {

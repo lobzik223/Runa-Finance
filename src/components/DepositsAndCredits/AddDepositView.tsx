@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../../services/api';
+import { handleAmountInput, formatAmountDisplay, parseAmount, validateAmount } from '../../utils/amountFormatter';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -28,10 +29,6 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
   const [endDate, setEndDate] = useState('');
   const [interestRate, setInterestRate] = useState('');
 
-  const parseNum = (v: string) => {
-    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
-    return Number.isFinite(n) ? n : NaN;
-  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -98,14 +95,17 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
         {/* Deposit Amount Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Сумма вклада</Text>
-          <TextInput
-            style={styles.inputField}
-            value={depositAmount}
-            onChangeText={setDepositAmount}
-            placeholder=""
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          <View style={styles.amountInputWrapper}>
+            <TextInput
+              style={styles.inputField}
+              value={formatAmountDisplay(depositAmount)}
+              onChangeText={(text) => setDepositAmount(handleAmountInput(text))}
+              placeholder="0"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+            <Text style={styles.rubleSign}>₽</Text>
+          </View>
         </View>
 
         {/* Interest Accrual Date Field */}
@@ -163,9 +163,10 @@ const AddDepositView: React.FC<AddDepositViewProps> = ({ onBack }) => {
                   return;
                 }
 
-                const principal = parseNum(depositAmount);
-                if (!Number.isFinite(principal) || principal <= 0) {
-                  Alert.alert('Ошибка', 'Введите сумму больше 0');
+                const principal = parseAmount(depositAmount);
+                const principalValidation = validateAmount(principal);
+                if (!principalValidation.valid) {
+                  Alert.alert('Ошибка', principalValidation.error || 'Введите сумму больше 0');
                   return;
                 }
 
@@ -264,18 +265,30 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: 8,
   },
-  inputField: {
+  amountInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#E8E0D4',
     borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 16,
-    fontSize: 16,
-    color: '#333333',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  inputField: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333333',
+    textAlign: 'right',
+    paddingRight: 8,
+  },
+  rubleSign: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
   },
   radioOption: {
     flexDirection: 'row',

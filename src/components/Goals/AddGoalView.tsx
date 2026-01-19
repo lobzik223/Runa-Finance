@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../../services/api';
+import { handleAmountInput, formatAmountDisplay, parseAmount, validateAmount } from '../../utils/amountFormatter';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -23,10 +24,6 @@ const AddGoalView: React.FC<AddGoalViewProps> = ({ onBack }) => {
   const [targetAmount, setTargetAmount] = useState('');
   const [accumulated, setAccumulated] = useState('');
 
-  const parseNum = (v: string) => {
-    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
-    return Number.isFinite(n) ? n : NaN;
-  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -63,27 +60,33 @@ const AddGoalView: React.FC<AddGoalViewProps> = ({ onBack }) => {
         {/* Target Amount Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Целевая сумма</Text>
-          <TextInput
-            style={styles.inputField}
-            value={targetAmount}
-            onChangeText={setTargetAmount}
-            placeholder=""
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          <View style={styles.amountInputWrapper}>
+            <TextInput
+              style={styles.inputField}
+              value={formatAmountDisplay(targetAmount)}
+              onChangeText={(text) => setTargetAmount(handleAmountInput(text))}
+              placeholder="0"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+            <Text style={styles.rubleSign}>₽</Text>
+          </View>
         </View>
 
         {/* Accumulated Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Накоплено</Text>
-          <TextInput
-            style={styles.inputField}
-            value={accumulated}
-            onChangeText={setAccumulated}
-            placeholder=""
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          <View style={styles.amountInputWrapper}>
+            <TextInput
+              style={styles.inputField}
+              value={formatAmountDisplay(accumulated)}
+              onChangeText={(text) => setAccumulated(handleAmountInput(text))}
+              placeholder="0"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+            <Text style={styles.rubleSign}>₽</Text>
+          </View>
         </View>
 
         {/* Add Button */}
@@ -96,15 +99,20 @@ const AddGoalView: React.FC<AddGoalViewProps> = ({ onBack }) => {
                 Alert.alert('Ошибка', 'Введите название');
                 return;
               }
-              const target = parseNum(targetAmount);
-              if (!Number.isFinite(target) || target <= 0) {
-                Alert.alert('Ошибка', 'Введите целевую сумму');
+              const target = parseAmount(targetAmount);
+              const targetValidation = validateAmount(target);
+              if (!targetValidation.valid) {
+                Alert.alert('Ошибка', targetValidation.error || 'Введите целевую сумму');
                 return;
               }
-              const initial = accumulated ? parseNum(accumulated) : 0;
-              if (accumulated && (!Number.isFinite(initial) || initial < 0)) {
-                Alert.alert('Ошибка', 'Неверная сумма накоплено');
-                return;
+              
+              const initial = accumulated ? parseAmount(accumulated) : 0;
+              if (accumulated) {
+                const initialValidation = validateAmount(initial);
+                if (!initialValidation.valid) {
+                  Alert.alert('Ошибка', initialValidation.error || 'Неверная сумма накоплено');
+                  return;
+                }
               }
 
               try {
@@ -183,18 +191,30 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 12,
   },
-  inputField: {
+  amountInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FDF7E9',
     borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 16,
-    fontSize: 16,
-    color: '#333333',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  inputField: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333333',
+    textAlign: 'right',
+    paddingRight: 8,
+  },
+  rubleSign: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
   },
   addButton: {
     backgroundColor: '#2F5B94',

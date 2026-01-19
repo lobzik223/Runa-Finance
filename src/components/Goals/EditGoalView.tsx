@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService, type Goal } from '../../services/api';
+import { handleAmountInput, formatAmountDisplay, parseAmount, validateAmount } from '../../utils/amountFormatter';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,10 +30,6 @@ const EditGoalView: React.FC<EditGoalViewProps> = ({ onBack, goal }) => {
     setTargetAmount(goal ? String(goal.targetAmount) : '');
   }, [goal]);
 
-  const parseNum = (v: string) => {
-    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
-    return Number.isFinite(n) ? n : NaN;
-  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -69,27 +66,33 @@ const EditGoalView: React.FC<EditGoalViewProps> = ({ onBack, goal }) => {
         {/* Target Amount Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Целевая сумма</Text>
-          <TextInput
-            style={styles.inputField}
-            value={targetAmount}
-            onChangeText={setTargetAmount}
-            placeholder=""
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          <View style={styles.amountInputWrapper}>
+            <TextInput
+              style={styles.inputField}
+              value={formatAmountDisplay(targetAmount)}
+              onChangeText={(text) => setTargetAmount(handleAmountInput(text))}
+              placeholder="0"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+            <Text style={styles.rubleSign}>₽</Text>
+          </View>
         </View>
 
         {/* Accumulated Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Добавить сумму</Text>
-          <TextInput
-            style={styles.inputField}
-            value={addAmount}
-            onChangeText={setAddAmount}
-            placeholder=""
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          <View style={styles.amountInputWrapper}>
+            <TextInput
+              style={styles.inputField}
+              value={formatAmountDisplay(addAmount)}
+              onChangeText={(text) => setAddAmount(handleAmountInput(text))}
+              placeholder="0"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+            <Text style={styles.rubleSign}>₽</Text>
+          </View>
         </View>
 
         {/* Action Buttons */}
@@ -103,20 +106,24 @@ const EditGoalView: React.FC<EditGoalViewProps> = ({ onBack, goal }) => {
               void (async () => {
                 if (!goal) return;
                 const name = goalName.trim();
-                const target = parseNum(targetAmount);
+                const target = parseAmount(targetAmount);
                 if (!name) {
                   Alert.alert('Ошибка', 'Введите название');
                   return;
                 }
-                if (!Number.isFinite(target) || target <= 0) {
-                  Alert.alert('Ошибка', 'Введите целевую сумму');
+                const targetValidation = validateAmount(target);
+                if (!targetValidation.valid) {
+                  Alert.alert('Ошибка', targetValidation.error || 'Введите целевую сумму');
                   return;
                 }
 
-                const add = addAmount ? parseNum(addAmount) : 0;
-                if (addAmount && (!Number.isFinite(add) || add <= 0)) {
-                  Alert.alert('Ошибка', 'Введите сумму пополнения');
-                  return;
+                const add = addAmount ? parseAmount(addAmount) : 0;
+                if (addAmount) {
+                  const addValidation = validateAmount(add);
+                  if (!addValidation.valid) {
+                    Alert.alert('Ошибка', addValidation.error || 'Введите сумму пополнения');
+                    return;
+                  }
                 }
 
                 try {
@@ -223,18 +230,30 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: 12,
   },
-  inputField: {
+  amountInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FDF7E9',
     borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 16,
-    fontSize: 16,
-    color: '#333333',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  inputField: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333333',
+    textAlign: 'right',
+    paddingRight: 8,
+  },
+  rubleSign: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
   },
   buttonsRow: {
     flexDirection: 'row',

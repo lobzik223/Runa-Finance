@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Image,
@@ -25,6 +24,8 @@ import GoalsView from '../Goals';
 import InvestmentsView from '../Investments';
 import ProfileView from '../Profile';
 import { apiService, type TransactionsAnalyticsResponse, type BackendTransactionType } from '../../services/api';
+import { parseAmount, validateAmount } from '../../utils/amountFormatter';
+import AmountInput from '../common/AmountInput';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -355,16 +356,18 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
         {/* Amount Input Section */}
         <View style={styles.amountInputSection}>
           <Text style={styles.transactionLabel}>Введите сумму:</Text>
-          <TextInput
+        <View style={styles.amountInputContainer}>
+          <AmountInput
             style={styles.amountInput}
             value={amount}
-            onChangeText={setAmount}
+            onValueChange={setAmount}
             keyboardType="numeric"
-            placeholder="0₽"
+            placeholder="0"
             placeholderTextColor="#FFFFFF"
-            showSoftInputOnFocus={true}
             returnKeyType="done"
           />
+          <Text style={styles.rubleSign}>₽</Text>
+        </View>
         </View>
 
         {/* Transaction Type Buttons Section */}
@@ -440,9 +443,11 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
           style={styles.addButton}
           onPress={() => {
             void (async () => {
-              const parsed = Number(String(amount).replace(/[^\d.,]/g, '').replace(',', '.'));
-              if (!Number.isFinite(parsed) || parsed <= 0) {
-                Alert.alert('Ошибка', 'Введите сумму больше 0');
+              // Парсим и валидируем сумму
+              const parsed = parseAmount(amount);
+              const validation = validateAmount(parsed);
+              if (!validation.valid) {
+                Alert.alert('Ошибка', validation.error || 'Неверная сумма');
                 return;
               }
               if (!selectedCategory) {
@@ -743,12 +748,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 12,
   },
+  amountInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 60,
+    width: '100%',
+  },
   amountInput: {
     fontSize: SCREEN_WIDTH < 375 ? 40 : 52,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
     minHeight: 60,
+    paddingHorizontal: 8,
+  },
+  rubleSign: {
+    fontSize: SCREEN_WIDTH < 375 ? 40 : 52,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginLeft: 4,
   },
   transactionTypeSection: {
     flexDirection: 'row',
