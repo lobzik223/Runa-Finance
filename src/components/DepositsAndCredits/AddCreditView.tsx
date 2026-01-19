@@ -12,9 +12,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../../services/api';
-import { handleAmountInput, formatAmountDisplay, parseAmount, validateAmount } from '../../utils/amountFormatter';
+import { parseAmount, validateAmount } from '../../utils/amountFormatter';
+import AmountInput from '../common/AmountInput';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const parseNum = (v: string): number => {
+  const cleaned = v.replace(/[^\d.,]/g, '').replace(',', '.');
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? num : NaN;
+};
 
 interface AddCreditViewProps {
   onBack?: () => void;
@@ -85,23 +92,25 @@ const AddCreditView: React.FC<AddCreditViewProps> = ({ onBack }) => {
         {/* Credit Name Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Название кредита</Text>
-          <TextInput
-            style={styles.inputField}
-            value={creditName}
-            onChangeText={setCreditName}
-            placeholder=""
-            placeholderTextColor="#999"
-          />
+          <View style={styles.textInputWrapper}>
+            <TextInput
+              style={styles.textInputField}
+              value={creditName}
+              onChangeText={setCreditName}
+              placeholder=""
+              placeholderTextColor="#999"
+            />
+          </View>
         </View>
 
         {/* Credit Amount Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Сумма кредита</Text>
           <View style={styles.amountInputWrapper}>
-            <TextInput
+            <AmountInput
               style={styles.inputField}
-              value={formatAmountDisplay(creditAmount)}
-              onChangeText={(text) => setCreditAmount(handleAmountInput(text))}
+              value={creditAmount}
+              onValueChange={setCreditAmount}
               placeholder="0"
               placeholderTextColor="#999"
               keyboardType="numeric"
@@ -113,27 +122,31 @@ const AddCreditView: React.FC<AddCreditViewProps> = ({ onBack }) => {
         {/* Interest Rate Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Процентная ставка (%)</Text>
-          <TextInput
-            style={styles.inputField}
-            value={interestRate}
-            onChangeText={setInterestRate}
-            placeholder=""
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          <View style={styles.textInputWrapper}>
+            <TextInput
+              style={styles.textInputField}
+              value={interestRate}
+              onChangeText={setInterestRate}
+              placeholder=""
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+          </View>
         </View>
 
         {/* Monthly Payment Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.fieldLabel}>Ежемесячный платёж</Text>
-          <TextInput
-            style={styles.inputField}
-            value={monthlyPayment}
-            onChangeText={setMonthlyPayment}
-            placeholder=""
-            placeholderTextColor="#999"
-            keyboardType="numeric"
-          />
+          <View style={styles.textInputWrapper}>
+            <TextInput
+              style={styles.textInputField}
+              value={monthlyPayment}
+              onChangeText={setMonthlyPayment}
+              placeholder=""
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+            />
+          </View>
         </View>
 
         {/* Payment Date Field */}
@@ -333,11 +346,26 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  textInputWrapper: {
+    backgroundColor: '#E8E0D4',
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  textInputField: {
+    fontSize: 16,
+    color: '#333333',
+  },
   inputField: {
     flex: 1,
     fontSize: 16,
     color: '#333333',
-    textAlign: 'right',
+    textAlign: 'center',
     paddingRight: 8,
   },
   rubleSign: {

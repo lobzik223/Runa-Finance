@@ -1,6 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { TextInput, TextInputProps } from 'react-native';
-import { formatAmountDisplay, handleAmountInput } from '../../utils/amountFormatter';
+import { handleAmountInput, formatAmountDisplay } from '../../utils/amountFormatter';
 
 type AmountInputProps = Omit<TextInputProps, 'value' | 'onChangeText'> & {
   value: string;
@@ -16,35 +16,51 @@ const AmountInput: React.FC<AmountInputProps> = ({
   placeholderTextColor = '#999',
   ...rest
 }) => {
-  const formattedValue = useMemo(
-    () => formatAmountDisplay(value || '0'),
-    [value],
-  );
+  const [displayValue, setDisplayValue] = useState(value || '');
+  const isFocusedRef = useRef(false);
 
-  const [selection, setSelection] = useState({
-    start: formattedValue.length,
-    end: formattedValue.length,
-  });
+  // При потере фокуса форматируем значение
+  const handleBlur = () => {
+    isFocusedRef.current = false;
+    if (value) {
+      const formatted = formatAmountDisplay(value);
+      setDisplayValue(formatted);
+    }
+  };
 
-  useEffect(() => {
-    setSelection({
-      start: formattedValue.length,
-      end: formattedValue.length,
-    });
-  }, [formattedValue]);
+  // При получении фокуса показываем сырое значение для удобного ввода
+  const handleFocus = () => {
+    isFocusedRef.current = true;
+    setDisplayValue(value || '');
+  };
 
   const handleChange = (text: string) => {
     const cleaned = handleAmountInput(text);
+    setDisplayValue(cleaned);
     onValueChange(cleaned);
   };
+
+  // Синхронизируем displayValue с value при изменении извне
+  useEffect(() => {
+    if (!isFocusedRef.current) {
+      if (value) {
+        setDisplayValue(formatAmountDisplay(value));
+      } else {
+        setDisplayValue('');
+      }
+    } else {
+      setDisplayValue(value || '');
+    }
+  }, [value]);
 
   return (
     <TextInput
       {...rest}
       style={style}
-      value={formattedValue}
+      value={displayValue}
       onChangeText={handleChange}
-      selection={selection}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       keyboardType={keyboardType}
       placeholder={placeholder}
       placeholderTextColor={placeholderTextColor}

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService, type Transaction, type Category } from '../../services/api';
+import { formatAmountDisplay } from '../../utils/amountFormatter';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -118,7 +119,7 @@ const ExpensesView: React.FC<ExpensesViewProps> = ({ onBack }) => {
           {loading ? (
             <ActivityIndicator />
           ) : (
-            <Text style={styles.summaryAmount}>-{Math.round(total).toLocaleString('ru-RU')}₽</Text>
+            <Text style={styles.summaryAmount}>-{formatAmountDisplay(total)}₽</Text>
           )}
           <Text style={styles.summarySubtitle}>за месяц</Text>
         </View>
@@ -156,7 +157,7 @@ const ExpensesView: React.FC<ExpensesViewProps> = ({ onBack }) => {
                     <Text style={styles.transactionDate}>{new Date(t.occurredAt).toLocaleDateString('ru-RU')}</Text>
                   </View>
                 </View>
-                <Text style={styles.transactionAmount}>-{Math.round(t.amount).toLocaleString('ru-RU')}₽</Text>
+                <Text style={styles.transactionAmount}>-{formatAmountDisplay(t.amount)}₽</Text>
               </TouchableOpacity>
             );
           })

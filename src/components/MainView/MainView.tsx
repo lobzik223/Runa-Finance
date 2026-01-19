@@ -334,7 +334,7 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
             {loadingAnalytics ? (
               <ActivityIndicator />
             ) : (
-              <Text style={styles.summaryAmount}>{formatRub(analytics?.totals.income || 0)}</Text>
+              <Text style={[styles.summaryAmount, styles.incomeAmount]}>{formatRub(analytics?.totals.income || 0)}</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity 
@@ -731,6 +731,9 @@ const styles = StyleSheet.create({
   },
   expenseAmount: {
     color: '#A0522D',
+  },
+  incomeAmount: {
+    color: '#1D4981',
   },
   amountInputSection: {
     backgroundColor: '#1D4981',
