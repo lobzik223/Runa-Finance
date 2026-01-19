@@ -25,6 +25,10 @@
     "plugins": [
       "expo-asset"
     ],
-    "scheme": "runa-finance"
+    "scheme": "runa-finance",
+    "extra": {
+      "EXPO_PUBLIC_API_URL": "https://api.runafinance.online/api",
+      "EXPO_PUBLIC_APP_KEY": "b1661a8ce017e081d1add4e9cd8688a8"
+    }
   }
 }

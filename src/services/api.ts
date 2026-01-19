@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Определение базового URL API
 // ТОЛЬКО production бекенд или переменная окружения - никаких локальных дефолтов
 const getApiBaseUrl = (): string => {
   // ПРИОРИТЕТ 1: Переменная окружения из .env файла
-  const customApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  const customApiUrl = process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL;
   if (customApiUrl) {
     return customApiUrl;
   }
@@ -298,13 +299,13 @@ class ApiService {
     };
 
     // App-to-backend shared key (защита от случайных запросов).
-    // В production НЕ используем дефолтный ключ — только EXPO_PUBLIC_APP_KEY.
-    const appKey = process.env.EXPO_PUBLIC_APP_KEY || '';
+    // Пробуем получить из process.env или из expo-constants (app.json)
+    const appKey = process.env.EXPO_PUBLIC_APP_KEY || Constants.expoConfig?.extra?.EXPO_PUBLIC_APP_KEY || '';
     if (appKey) {
       headers['X-Runa-App-Key'] = appKey;
     } else {
       // Логируем предупреждение если ключ не установлен
-      console.warn('[API] WARNING: EXPO_PUBLIC_APP_KEY not set! Requests may fail with 401.');
+      console.warn('[API] WARNING: EXPO_PUBLIC_APP_KEY not set! Create .env file or add to app.json. Requests may fail with 401.');
     }
 
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -388,7 +389,7 @@ class ApiService {
     console.log(`[API] ${options.method || 'GET'} ${url}`);
     
     // Логируем наличие APP_KEY для диагностики
-    const appKey = process.env.EXPO_PUBLIC_APP_KEY;
+    const appKey = process.env.EXPO_PUBLIC_APP_KEY || Constants.expoConfig?.extra?.EXPO_PUBLIC_APP_KEY;
     if (!appKey) {
       console.warn('[API] WARNING: EXPO_PUBLIC_APP_KEY is not set! Create .env file with EXPO_PUBLIC_APP_KEY=b1661a8ce017e081d1add4e9cd8688a8');
     }
