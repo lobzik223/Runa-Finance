@@ -51,7 +51,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
 
     try {
       console.log('[Login] Начало входа:', { email });
-      
       const response = await apiService.login({
         email: email.trim().toLowerCase(),
         password,
@@ -70,7 +69,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
       ]);
     } catch (error: any) {
       console.error('[Login] Ошибка входа:', error);
-      const errorMessage = error.message || 'Ошибка при входе. Проверьте email и пароль.';
+      const errorMessage = error?.message || 'Ошибка при входе. Проверьте email и пароль.';
       Alert.alert('Ошибка входа', errorMessage);
     } finally {
       setLoading(false);
@@ -82,7 +81,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
       marginTop: -insets.top, 
       marginBottom: -insets.bottom 
     }]}>
-      <View style={styles.backgroundOverlay} />
+      <View pointerEvents="none" style={styles.backgroundOverlay} />
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

@@ -24,27 +24,27 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onBack }) => {
     {
       title: 'Неограниченный ИИ-чат',
       description: 'Безлимитные сообщения и консультации\nВ бесплатной версии — лимит',
-      icon: require('../icon/chatlogo.png'),
+      icon: require('../../../images/icon/chaticon.png'),
     },
     {
       title: 'Глубокий анализ доходов и расходов',
       description: 'Полная статистика по категориям, динамика, графики\nПомогает понять, куда уходят деньги',
-      icon: require('../icon/analiz.png'),
+      icon: require('../../../images/icon/analitik.png'),
     },
     {
       title: 'Прогнозы по инвестициям',
       description: 'Прогнозы по акциям, облигациям и другим инструментам\nИИ анализирует тренды и подсказывает момент входа',
-      icon: require('../icon/invist.png'),
+      icon: require('../../../images/icon/Analiz2icon.png'),
     },
     {
       title: 'Индивидуальные финансовые планы',
       description: 'Персонализированные рекомендации для достижения целей',
-      icon: require('../icon/credit.png'),
+      icon: require('../../../images/icon/analitickksicon3.png'),
     },
     {
       title: 'Анализ фондового рынка',
       description: 'Ежедневные сводки и прогнозы по текущим трендам',
-      icon: require('../icon/analiz.png'),
+      icon: require('../../../images/icon/kruganalitik.png'),
     },
   ];
 

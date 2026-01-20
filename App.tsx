@@ -1,13 +1,14 @@
 import 'react-native-gesture-handler';
+
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import LoadingView from './src/components/LoadingView';
 import RegistrationView from './src/components/RegistrationView';
 import LoginView from './src/components/LoginView';
 import PinCodeView from './src/components/PinCodeView';
-import MainView from './src/components/MainView';
+// Ленивая загрузка MainView для избежания проблем с expo-file-system при импорте
 import { apiService } from './src/services/api';
 
 type ScreenType = 'loading' | 'login' | 'registration' | 'pincode' | 'main';
@@ -16,6 +17,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('loading');
   const [pinCodeMode, setPinCodeMode] = useState<'create' | 'enter'>('enter');
   const navigationDirection = useRef<'forward' | 'backward'>('forward');
+  const [MainViewComponent, setMainViewComponent] = useState<React.ComponentType<any> | null>(null);
 
   const handleNavigate = (screen: ScreenType) => {
     const screenOrder: ScreenType[] = ['loading', 'login', 'registration', 'pincode'];
@@ -47,8 +49,31 @@ export default function App() {
   };
 
   const handlePinCodeComplete = () => {
-    handleNavigate('main');
+    // ВРЕМЕННО: загружаем MainView с задержкой для диагностики
+    if (!MainViewComponent) {
+      setTimeout(() => {
+        import('./src/components/MainView').then((module) => {
+          setMainViewComponent(() => module.default);
+          handleNavigate('main');
+        }).catch((err) => {
+          console.error('Ошибка загрузки MainView:', err);
+        });
+      }, 1000);
+    } else {
+      handleNavigate('main');
+    }
   };
+
+  // Загружаем MainView заранее, если мы на экране main
+  React.useEffect(() => {
+    if (currentScreen === 'main' && !MainViewComponent) {
+      import('./src/components/MainView').then((module) => {
+        setMainViewComponent(() => module.default);
+      }).catch((err) => {
+        console.error('Ошибка загрузки MainView:', err);
+      });
+    }
+  }, [currentScreen, MainViewComponent]);
 
   return (
     <SafeAreaProvider>
@@ -85,7 +110,13 @@ export default function App() {
         )}
         {currentScreen === 'main' && (
           <View key="main" style={styles.animatedContainer}>
-            <MainView onLogout={() => handleNavigate('login')} />
+            {MainViewComponent ? (
+              <MainViewComponent onLogout={() => handleNavigate('login')} />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#788FAC' }}>
+                <Text style={{ color: '#FFFFFF' }}>Загрузка...</Text>
+              </View>
+            )}
           </View>
         )}
       </View>

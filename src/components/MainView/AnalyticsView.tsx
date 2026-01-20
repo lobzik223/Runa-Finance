@@ -153,10 +153,10 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
             </View>
           </View>
           <View style={styles.summaryTextContainer}>
-            <Text style={styles.summaryLabel}>Расходы</Text>
-            <Text style={styles.summaryPercent}>{expensePercent}%</Text>
-            <Text style={[styles.summaryLabel, styles.incomeLabel]}>Доходы</Text>
-            <Text style={[styles.summaryPercent, styles.incomePercent]}>{incomePercent}%</Text>
+            <Text style={[styles.summaryLabel, styles.expenseLabel]}>Расходы</Text>
+            <Text style={[styles.summaryPercent, styles.expensePercent]}>{expensePercent}%</Text>
+            <Text style={styles.summaryLabel}>Доходы</Text>
+            <Text style={styles.summaryPercent}>{incomePercent}%</Text>
           </View>
         </View>
 
@@ -302,10 +302,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     opacity: 0.8,
   },
-  incomeLabel: {
+  expenseLabel: {
     color: '#D4A373',
   },
-  incomePercent: {
+  expensePercent: {
     color: '#D4A373',
   },
   tabsContainer: {

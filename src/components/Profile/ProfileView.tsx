@@ -9,8 +9,10 @@ import {
   Image,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReferralView from './ReferralView';
 import PremiumView from './PremiumView';
 import PrivacyPolicyView from './PrivacyPolicyView';
@@ -33,6 +35,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  const AVATAR_STORAGE_KEY = '@runa_finance:avatar_uri';
 
   const fetchUser = async (alive: boolean) => {
     const cached = await apiService.getUser();
@@ -58,10 +63,95 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
   useEffect(() => {
     let alive = true;
     void fetchUser(alive);
+    // НЕ загружаем аватарку автоматически - это вызывает загрузку expo-file-system
+    // Аватарка загрузится только при первом рендере компонента (ленивая загрузка)
     return () => {
       alive = false;
     };
   }, []);
+
+  // ВРЕМЕННО ОТКЛЮЧЕНО: загрузка аватарки для диагностики ошибки
+  // const [avatarLoaded, setAvatarLoaded] = useState(false);
+  // useEffect(() => {
+  //   if (!avatarLoaded) {
+  //     setAvatarLoaded(true);
+  //     setTimeout(() => {
+  //       void loadAvatar();
+  //     }, 100);
+  //   }
+  // }, [avatarLoaded]);
+
+  const loadAvatar = async () => {
+    // ВРЕМЕННО ОТКЛЮЧЕНО для диагностики ошибки
+    return;
+    
+    // try {
+    //   const savedUri = await AsyncStorage.getItem(AVATAR_STORAGE_KEY);
+    //   if (savedUri) {
+    //     // Динамический импорт FileSystem только когда он нужен
+    //     const FileSystem = await import('expo-file-system');
+    //     // Проверяем, что файл существует
+    //     const fileInfo = await FileSystem.getInfoAsync(savedUri);
+    //     if (fileInfo.exists) {
+    //       setAvatarUri(savedUri);
+    //     } else {
+    //       // Файл не существует, удаляем из хранилища
+    //       await AsyncStorage.removeItem(AVATAR_STORAGE_KEY);
+    //     }
+    //   }
+    // } catch (e) {
+    //   console.error('Ошибка загрузки аватарки:', e);
+    // }
+  };
+
+  const handleAvatarPress = async () => {
+    // ВРЕМЕННО ОТКЛЮЧЕНО для диагностики ошибки
+    Alert.alert('Информация', 'Функция выбора аватарки временно отключена');
+    return;
+    
+    // try {
+    //   // Динамический импорт ImagePicker только когда он нужен
+    //   const ImagePicker = await import('expo-image-picker');
+    //   
+    //   // Запрашиваем разрешение на доступ к галерее
+    //   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    //   if (status !== 'granted') {
+    //     Alert.alert('Ошибка', 'Нужно разрешение на доступ к галерее');
+    //     return;
+    //   }
+
+    //   // Открываем галерею для выбора фото
+    //   const result = await ImagePicker.launchImageLibraryAsync({
+    //     mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    //     allowsEditing: true,
+    //     aspect: [1, 1],
+    //     quality: 0.8,
+    //   });
+
+    //   if (!result.canceled && result.assets[0]) {
+    //     const selectedImage = result.assets[0];
+    //     
+    //     // Динамический импорт FileSystem
+    //     const FileSystem = await import('expo-file-system');
+    //     
+    //     // Сохраняем изображение локально
+    //     const fileName = `avatar_${Date.now()}.jpg`;
+    //     const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    //     
+    //     // Копируем выбранное изображение в локальное хранилище
+    //     await FileSystem.copyAsync({
+    //       from: selectedImage.uri,
+    //       to: fileUri,
+    //     });
+
+    //     // Сохраняем путь в AsyncStorage
+    //     await AsyncStorage.setItem(AVATAR_STORAGE_KEY, fileUri);
+    //     setAvatarUri(fileUri);
+    //   }
+    // } catch (e: any) {
+    //   Alert.alert('Ошибка', e?.message || 'Не удалось выбрать фото');
+    // }
+  };
 
   const handleUpdateName = async () => {
     if (!newName.trim()) {
@@ -127,14 +217,25 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
         <View style={styles.profileSection}>
           <View style={styles.profileCard}>
             {/* Avatar centered on the top border */}
-            <View style={styles.avatarContainer}>
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={handleAvatarPress}
+              activeOpacity={0.7}
+            >
               <View style={styles.avatar}>
-                <Image 
-                  source={require('../icon/chatlogo.png')}
-                  style={styles.avatarImage}
-                />
+                {avatarUri ? (
+                  <Image 
+                    source={{ uri: avatarUri }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Image 
+                    source={require('../icon/chatlogo.png')}
+                    style={styles.avatarImage}
+                  />
+                )}
               </View>
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.userInfo}>
               {isEditingName ? (
@@ -179,6 +280,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
                     onPress={() => {
                       void (async () => {
                         await apiService.clearAuth();
+                        // Аватарка остаётся в AsyncStorage и FileSystem, не удаляем
                         onLogout?.();
                       })();
                     }}
@@ -204,7 +306,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
             onPress={() => setShowPremium(true)}
           >
             <View style={styles.optionLeft}>
-              <Image source={require('../icon/home.png')} style={styles.smallIcon} tintColor="#333" />
+              <Image source={require('../../../images/icon/subicon.png')} style={styles.smallIcon} />
               <Text style={styles.optionText}>Подписка RUNA Premium</Text>
             </View>
             <Text style={styles.optionArrow}>→</Text>
@@ -215,7 +317,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
             onPress={() => setShowReferral(true)}
           >
             <View style={styles.optionLeft}>
-              <Image source={require('../icon/home.png')} style={styles.smallIcon} tintColor="#333" />
+              <Image source={require('../../../images/icon/ref.png')} style={styles.smallIcon} />
               <Text style={styles.optionText}>Реферальная программа</Text>
             </View>
             <Text style={styles.optionArrow}>→</Text>
@@ -223,7 +325,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
 
           <TouchableOpacity style={styles.optionItem}>
             <View style={styles.optionLeft}>
-              <Image source={require('../icon/home.png')} style={styles.smallIcon} tintColor="#333" />
+              <Image source={require('../../../images/icon/supporticon.png')} style={styles.smallIcon} />
               <Text style={styles.optionText}>Поддержка</Text>
             </View>
             <Text style={styles.optionArrow}>→</Text>
@@ -234,7 +336,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
             onPress={() => setShowPrivacy(true)}
           >
             <View style={styles.optionLeft}>
-              <Image source={require('../icon/home.png')} style={styles.smallIcon} tintColor="#333" />
+              <Image source={require('../../../images/icon/politik.png')} style={styles.smallIcon} />
               <Text style={styles.optionText}>Политика конфиденциальности</Text>
             </View>
             <Text style={styles.optionArrow}>→</Text>

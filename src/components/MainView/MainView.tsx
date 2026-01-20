@@ -22,7 +22,7 @@ import PremiumView from '../Profile/PremiumView';
 import DepositsAndCreditsView from '../DepositsAndCredits';
 import GoalsView from '../Goals';
 import InvestmentsView from '../Investments';
-import ProfileView from '../Profile';
+// Ленивая загрузка ProfileView для избежания проблем с expo-file-system при импорте
 import { apiService, type TransactionsAnalyticsResponse, type BackendTransactionType } from '../../services/api';
 import { parseAmount, validateAmount } from '../../utils/amountFormatter';
 import AmountInput from '../common/AmountInput';
@@ -48,6 +48,7 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
   const [showInvestments, setShowInvestments] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [ProfileViewComponent, setProfileViewComponent] = useState<React.ComponentType<any> | null>(null);
   const [showPremium, setShowPremium] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<{ id: number; name: string } | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<{ id: number; name: string } | null>(null);
@@ -190,8 +191,28 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
     }
   };
 
+  // Ленивая загрузка ProfileView только когда он нужен
+  useEffect(() => {
+    if (showProfile && !ProfileViewComponent) {
+      // Импортируем напрямую ProfileView, минуя index.tsx
+      import('../Profile/ProfileView').then((module) => {
+        setProfileViewComponent(() => module.default);
+      }).catch((err) => {
+        console.error('Ошибка загрузки ProfileView:', err);
+      });
+    }
+  }, [showProfile, ProfileViewComponent]);
+
   const renderContent = () => {
     if (showProfile) {
+      if (!ProfileViewComponent) {
+        return (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          </View>
+        );
+      }
+      const ProfileView = ProfileViewComponent;
       return (
         <ProfileView
           onBack={() => setShowProfile(false)}

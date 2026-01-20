@@ -1,12 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+// ВРЕМЕННО: отключаем expo-constants для диагностики
+// import Constants from 'expo-constants';
 
 // Определение базового URL API
 // ТОЛЬКО production бекенд или переменная окружения - никаких локальных дефолтов
 const getApiBaseUrl = (): string => {
   // ПРИОРИТЕТ 1: Переменная окружения из .env файла
-  const customApiUrl = process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL;
+  const customApiUrl = process.env.EXPO_PUBLIC_API_URL; // || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL;
   if (customApiUrl) {
     return customApiUrl;
   }
@@ -218,6 +218,7 @@ export interface PinStatusResponse {
 // Класс для работы с API
 class ApiService {
   private readonly baseURL: string;
+  private refreshInFlight: Promise<void> | null = null;
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -300,7 +301,7 @@ class ApiService {
 
     // App-to-backend shared key (защита от случайных запросов).
     // Пробуем получить из process.env или из expo-constants (app.json)
-    const appKey = process.env.EXPO_PUBLIC_APP_KEY || Constants.expoConfig?.extra?.EXPO_PUBLIC_APP_KEY || '';
+    const appKey = process.env.EXPO_PUBLIC_APP_KEY || ''; // || Constants.expoConfig?.extra?.EXPO_PUBLIC_APP_KEY || '';
     if (appKey) {
       headers['X-Runa-App-Key'] = appKey;
     } else {
@@ -327,22 +328,30 @@ class ApiService {
       console.log(`[API Debug] X-Runa-App-Key header: ${hasAppKey ? 'PRESENT' : 'MISSING'}`);
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, { ...options, headers });
+    } catch (fetchError: any) {
+      console.error('[API] Fetch error:', fetchError);
+      throw new Error(fetchError?.message || 'Ошибка сети');
+    }
 
     const contentType = response.headers.get('content-type');
     let data: any;
-    if (contentType?.includes('application/json')) {
-      data = await response.json();
-    } else {
-      const text = await response.text();
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { message: text };
+    try {
+      if (contentType?.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { message: text };
+        }
       }
+    } catch (parseError: any) {
+      console.error('[API] Parse error:', parseError);
+      throw new Error('Ошибка парсинга ответа сервера');
     }
 
     if (!response.ok) {
@@ -356,7 +365,10 @@ class ApiService {
           })
           .join('\n');
       }
-      if (!meta?.silent) console.error(`[API Error] ${response.status}:`, data);
+      if (!meta?.silent) {
+        console.error(`[API Error] ${endpoint}:`, errorMessage);
+        console.error(`[API Error] Response data:`, data);
+      }
       throw new Error(errorMessage);
     }
 
@@ -364,17 +376,39 @@ class ApiService {
   }
 
   private async refreshAccessToken(): Promise<void> {
-    const refreshToken = await this.getRefreshToken();
-    if (!refreshToken) throw new Error('Unauthorized');
+    // Не запускаем refresh параллельно (иначе можно словить гонки и “слёт” сессии)
+    if (this.refreshInFlight) {
+      await this.refreshInFlight;
+      return;
+    }
 
-    const res = await this.rawRequest<AuthResponse>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }, refreshToken);
+    const run = async () => {
+      const refreshToken = await this.getRefreshToken();
+      if (!refreshToken) throw new Error('Unauthorized');
 
-    await this.saveToken(res.token);
-    if (res.refreshToken) {
-      await this.saveRefreshToken(res.refreshToken);
+      // ВАЖНО: backend валидирует RefreshDto и ждёт refreshToken в body
+      const res = await this.rawRequest<AuthResponse>(
+        '/auth/refresh',
+        {
+          method: 'POST',
+          body: JSON.stringify({ refreshToken }),
+        },
+        // Дублируем и в Authorization: backend умеет доставать оттуда тоже
+        refreshToken,
+        { silent: true },
+      );
+
+      await this.saveToken(res.token);
+      if (res.refreshToken) {
+        await this.saveRefreshToken(res.refreshToken);
+      }
+    };
+
+    this.refreshInFlight = run();
+    try {
+      await this.refreshInFlight;
+    } finally {
+      this.refreshInFlight = null;
     }
   }
 
@@ -389,7 +423,7 @@ class ApiService {
     console.log(`[API] ${options.method || 'GET'} ${url}`);
     
     // Логируем наличие APP_KEY для диагностики
-    const appKey = process.env.EXPO_PUBLIC_APP_KEY || Constants.expoConfig?.extra?.EXPO_PUBLIC_APP_KEY;
+    const appKey = process.env.EXPO_PUBLIC_APP_KEY || ''; // || Constants.expoConfig?.extra?.EXPO_PUBLIC_APP_KEY;
     if (!appKey) {
       console.warn('[API] WARNING: EXPO_PUBLIC_APP_KEY is not set! Create .env file with EXPO_PUBLIC_APP_KEY=b1661a8ce017e081d1add4e9cd8688a8');
     }

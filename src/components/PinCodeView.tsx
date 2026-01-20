@@ -179,7 +179,7 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
       marginTop: -insets.top, 
       marginBottom: -insets.bottom 
     }]}>
-      <View style={styles.backgroundOverlay} />
+      <View pointerEvents="none" style={styles.backgroundOverlay} />
       <View
         style={[
           styles.content,
