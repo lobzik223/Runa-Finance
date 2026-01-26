@@ -10,6 +10,8 @@ import {
   Animated,
   ActivityIndicator,
   Alert,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CategoriesView from './CategoriesView';
@@ -26,6 +28,7 @@ import InvestmentsView from '../Investments';
 import { apiService, type TransactionsAnalyticsResponse, type BackendTransactionType } from '../../services/api';
 import { parseAmount, validateAmount } from '../../utils/amountFormatter';
 import AmountInput from '../common/AmountInput';
+import { useToast } from '../../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -35,6 +38,7 @@ interface MainViewProps {
 
 const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [transactionType, setTransactionType] = useState<'income' | 'expense'>('income');
   const [amount, setAmount] = useState('0');
   const [showCategories, setShowCategories] = useState(false);
@@ -148,6 +152,20 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
   useEffect(() => {
     void loadAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Перезагрузка данных при возврате в приложение
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // При возврате в приложение перезагружаем аналитику
+        void loadAnalytics();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   const formatRub = (value: number) => {
@@ -468,15 +486,15 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
               const parsed = parseAmount(amount);
               const validation = validateAmount(parsed);
               if (!validation.valid) {
-                Alert.alert('Ошибка', validation.error || 'Неверная сумма');
+                toast.error(validation.error || 'Неверная сумма');
                 return;
               }
               if (!selectedCategory) {
-                Alert.alert('Ошибка', 'Выберите категорию');
+                toast.error('Выберите категорию');
                 return;
               }
               if (!selectedPaymentMethod) {
-                Alert.alert('Ошибка', 'Выберите способ оплаты');
+                toast.error('Выберите способ оплаты');
                 return;
               }
               const type: BackendTransactionType = transactionType === 'income' ? 'INCOME' : 'EXPENSE';
@@ -493,9 +511,9 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
                 setSelectedCategory(null);
                 setSelectedPaymentMethod(null);
                 await loadAnalytics();
-                Alert.alert('Успех', 'Операция добавлена');
+                toast.success('Операция добавлена');
               } catch (e: any) {
-                Alert.alert('Ошибка', e?.message || 'Не удалось добавить операцию');
+                toast.error(e?.message || 'Не удалось добавить операцию');
               }
             })();
           }}

@@ -219,9 +219,19 @@ export interface PinStatusResponse {
 class ApiService {
   private readonly baseURL: string;
   private refreshInFlight: Promise<void> | null = null;
+  private onAuthInvalidated: (() => void) | null = null;
 
   constructor() {
     this.baseURL = API_BASE_URL;
+  }
+
+  setAuthInvalidatedHandler(handler: (() => void) | null) {
+    this.onAuthInvalidated = handler;
+  }
+
+  private async invalidateAuth(): Promise<void> {
+    await this.clearAuth();
+    this.onAuthInvalidated?.();
   }
 
   // Получение токена из хранилища
@@ -332,8 +342,32 @@ class ApiService {
     try {
       response = await fetch(url, { ...options, headers });
     } catch (fetchError: any) {
-      console.error('[API] Fetch error:', fetchError);
-      throw new Error(fetchError?.message || 'Ошибка сети');
+      // В RN/Expo иногда fetch падает с ошибкой вида:
+      // "Failed to construct 'Response': The status provided (0) is outside the range [200, 599]."
+      // Считаем это сетевой ошибкой (status 0) и даём понятное сообщение.
+      const rawMsg = String(fetchError?.message || fetchError || '');
+      const lower = rawMsg.toLowerCase();
+      const looksLikeStatus0 =
+        lower.includes("failed to construct 'response'") ||
+        lower.includes('status provided (0)') ||
+        lower.includes('outside the range [200, 599]') ||
+        lower.includes('status 0');
+      
+      const isNetworkError = 
+        lower.includes('network request failed') ||
+        lower.includes('networkerror') ||
+        lower.includes('failed to fetch') ||
+        lower.includes('err_network') ||
+        looksLikeStatus0;
+
+      if (!meta?.silent) {
+        console.error('[API] Fetch error:', fetchError);
+      }
+
+      if (isNetworkError) {
+        throw new Error('Ошибка сети. Проверьте подключение к интернету и доступность сервера.');
+      }
+      throw new Error(rawMsg || 'Ошибка сети');
     }
 
     const contentType = response.headers.get('content-type');
@@ -365,7 +399,9 @@ class ApiService {
           })
           .join('\n');
       }
-      if (!meta?.silent) {
+      const isAuthError = response.status === 401 || response.status === 403;
+      // Не спамим логами LogBox на ожидаемых auth-ошибках (401/403).
+      if (!meta?.silent && !isAuthError) {
         console.error(`[API Error] ${endpoint}:`, errorMessage);
         console.error(`[API Error] Response data:`, data);
       }
@@ -375,7 +411,7 @@ class ApiService {
     return data as T;
   }
 
-  private async refreshAccessToken(): Promise<void> {
+  async refreshAccessToken(): Promise<void> {
     // Не запускаем refresh параллельно (иначе можно словить гонки и “слёт” сессии)
     if (this.refreshInFlight) {
       await this.refreshInFlight;
@@ -436,30 +472,49 @@ class ApiService {
         return data;
       } catch (e: any) {
         // If unauthorized and we have refresh token, refresh once and retry
-        if (e?.message?.toLowerCase?.().includes('unauthorized')) {
+        const errorMessage = String(e?.message || '').toLowerCase();
+        if (errorMessage.includes('unauthorized') || errorMessage.includes('401')) {
           try {
             await this.refreshAccessToken();
             const newToken = await this.getToken();
             const data = await this.rawRequest<T>(endpoint, options, newToken);
             console.log(`[API Success] retry ${options.method || 'GET'} ${endpoint}`);
             return data;
-          } catch {
+          } catch (refreshError: any) {
+            // Если refresh не удался, считаем сессию законченной только при 401/Unauthorized.
+            const refreshErrorMsg = String(refreshError?.message || '').toLowerCase();
+            if (refreshErrorMsg.includes('unauthorized') || refreshErrorMsg.includes('401')) {
+              await this.invalidateAuth();
+            }
             // fallthrough to original error handling
           }
         }
         throw e;
       }
     } catch (error: any) {
-      console.error(`[API Error] ${endpoint}:`, error);
+      const msg = String(error?.message || '').toLowerCase();
+      const isAuthError = msg.includes('unauthorized') || msg.includes('401');
+      if (!isAuthError) {
+        console.error(`[API Error] ${endpoint}:`, error);
+      }
       
       // Более понятные сообщения об ошибках
-      if (error.message === 'Network request failed' || error.message?.includes('Network')) {
-        throw new Error(
-          `Не удалось подключиться к серверу. Убедитесь, что:\n` +
-          `1. Бэкенд запущен (npm run dev в папке backend-runa)\n` +
-          `2. URL правильный: ${url}\n` +
-          `3. Для физического устройства используйте IP адрес компьютера`
-        );
+      if (error.message === 'Network request failed' || error.message?.includes('Network') || error.message?.includes('Ошибка сети')) {
+        const isProduction = this.baseURL.includes('api.runafinance.online');
+        if (isProduction) {
+          throw new Error(
+            `Не удалось подключиться к серверу.\n` +
+            `Проверьте подключение к интернету.\n` +
+            `Сервер: ${this.baseURL.replace('/api', '')}`
+          );
+        } else {
+          throw new Error(
+            `Не удалось подключиться к серверу. Убедитесь, что:\n` +
+            `1. Бэкенд запущен (npm run dev в папке backend-runa)\n` +
+            `2. URL правильный: ${url}\n` +
+            `3. Для физического устройства используйте IP адрес компьютера`
+          );
+        }
       }
       
       throw error;

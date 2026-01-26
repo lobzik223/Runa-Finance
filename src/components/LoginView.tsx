@@ -9,13 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../services/api';
-import { AppleIcon } from './common/icons/AppleIcon';
 import { GoogleIcon } from './common/icons/GoogleIcon';
+import { useToast } from '../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -26,6 +25,7 @@ interface LoginViewProps {
 
 const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onComplete }) => {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,17 +33,17 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
   const handleLogin = async () => {
     // Валидация
     if (!email.trim()) {
-      Alert.alert('Ошибка', 'Введите email');
+      toast.error('Введите email');
       return;
     }
 
     if (!email.includes('@')) {
-      Alert.alert('Ошибка', 'Введите корректный email');
+      toast.error('Введите корректный email');
       return;
     }
 
     if (!password) {
-      Alert.alert('Ошибка', 'Введите пароль');
+      toast.error('Введите пароль');
       return;
     }
 
@@ -57,20 +57,17 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
       });
 
       console.log('[Login] Успешный вход:', response.user);
-      Alert.alert('Успех', `Добро пожаловать, ${response.user.name}!`, [
-        {
-          text: 'OK',
-          onPress: () => {
-            if (onComplete) {
-              onComplete();
-            }
-          },
-        },
-      ]);
+      toast.success(`Добро пожаловать, ${response.user.name}!`);
+      // Небольшая задержка для показа уведомления
+      setTimeout(() => {
+        if (onComplete) {
+          onComplete();
+        }
+      }, 500);
     } catch (error: any) {
       console.error('[Login] Ошибка входа:', error);
       const errorMessage = error?.message || 'Ошибка при входе. Проверьте email и пароль.';
-      Alert.alert('Ошибка входа', errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -158,7 +155,11 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
             disabled={loading}
           >
             <View style={styles.socialIcon}>
-              <AppleIcon size={20} color="#FFFFFF" />
+              <Image 
+                source={require('../../images/icon/appleicon.png')} 
+                style={{ width: 26, height: 26 }} 
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.socialButtonText}>Войти с помощью Apple</Text>
           </TouchableOpacity>

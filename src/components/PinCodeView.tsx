@@ -5,10 +5,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -19,6 +19,7 @@ interface PinCodeViewProps {
 
 const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [pin, setPin] = useState<string[]>([]);
   const [confirmPin, setConfirmPin] = useState<string[]>([]);
   const [step, setStep] = useState<'enter' | 'confirm'>(mode === 'create' ? 'enter' : 'enter');
@@ -44,7 +45,7 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
         await apiService.verifyPin({ pin: value });
         onComplete?.();
       } catch (e: any) {
-        Alert.alert('PIN', e?.message || 'Неверный PIN');
+        toast.error(e?.message || 'Неверный PIN');
         resetAll();
       } finally {
         setSubmitting(false);
@@ -59,7 +60,7 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
   const submitConfirm = async (digits: string[]) => {
     const value = digits.join('');
     if (value !== pin.join('')) {
-      Alert.alert('PIN', 'PIN не совпадает. Попробуйте ещё раз.');
+      toast.error('PIN не совпадает. Попробуйте ещё раз.');
       setPin([]);
       setConfirmPin([]);
       setStep('enter');
@@ -71,7 +72,7 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
       await apiService.setPin({ pin: value, pinLength, biometricEnabled });
       onComplete?.();
     } catch (e: any) {
-      Alert.alert('PIN', e?.message || 'Не удалось установить PIN');
+      toast.error(e?.message || 'Не удалось установить PIN');
       resetAll();
     } finally {
       setSubmitting(false);
@@ -128,18 +129,15 @@ const PinCodeView: React.FC<PinCodeViewProps> = ({ mode, onComplete }) => {
       ['1', '2', '3'],
       ['4', '5', '6'],
       ['7', '8', '9'],
-      ['', '0', 'delete'],
+      ['0', 'delete'],
     ];
 
     return (
       <View style={styles.keypad}>
         {numbers.map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.keypadRow}>
+          <View key={rowIndex} style={[styles.keypadRow, rowIndex === numbers.length - 1 && styles.keypadRowLast]}>
+            {rowIndex === numbers.length - 1 && <View style={styles.keypadButtonSpacer} />}
             {row.map((item, colIndex) => {
-              if (item === '') {
-                return <View key={colIndex} style={styles.keypadButton} />;
-              }
-              
               if (item === 'delete') {
                 return (
                   <TouchableOpacity
@@ -312,6 +310,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
+  },
+  keypadRowLast: {
+    justifyContent: 'space-between',
+  },
+  keypadButtonSpacer: {
+    width: 80,
+    height: 80,
   },
   keypadButton: {
     width: 80,

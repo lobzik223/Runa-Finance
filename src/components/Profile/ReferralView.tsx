@@ -6,11 +6,12 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
-  Alert,
   Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import { apiService } from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -20,6 +21,7 @@ interface ReferralViewProps {
 
 const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [promoCode, setPromoCode] = useState<string>('—');
 
   useEffect(() => {
@@ -41,16 +43,20 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
 
   const handleCopy = async () => {
     if (!promoCode || promoCode === '—') {
-      Alert.alert('Рефералка', 'Промокод пока не доступен. Попробуй позже.');
+      toast.warning('Промокод пока не доступен. Попробуй позже.');
       return;
     }
-    // Без доп. библиотек копирования: делаем код выделяемым.
-    Alert.alert('Скопировать', 'Зажми промокод и выбери «Скопировать».');
+    try {
+      await Clipboard.setStringAsync(promoCode);
+      toast.success('Промокод скопирован в буфер обмена!');
+    } catch (error) {
+      toast.error('Не удалось скопировать промокод');
+    }
   };
 
   const handleSend = async () => {
     if (!promoCode || promoCode === '—') {
-      Alert.alert('Рефералка', 'Промокод пока не доступен. Попробуй позже.');
+      toast.warning('Промокод пока не доступен. Попробуй позже.');
       return;
     }
     await Share.share({ message: `Мой промокод RUNA: ${promoCode}` });
@@ -58,7 +64,7 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
 
   const handleShare = async () => {
     if (!promoCode || promoCode === '—') {
-      Alert.alert('Рефералка', 'Промокод пока не доступен. Попробуй позже.');
+      toast.warning('Промокод пока не доступен. Попробуй позже.');
       return;
     }
     await Share.share({ title: 'RUNA', message: `Присоединяйся к RUNA! Мой промокод: ${promoCode}` });
@@ -78,7 +84,7 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 200 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Promo Code Card */}
@@ -88,6 +94,14 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
           </Text>
           <Text style={styles.promoHint}>Нажми и удерживай промокод, чтобы скопировать</Text>
         </View>
+
+        {/* Copy Button below promo code */}
+        <TouchableOpacity 
+          style={[styles.copyButton, styles.actionBtnSoft]} 
+          onPress={handleCopy}
+        >
+          <Text style={[styles.copyButtonText, styles.actionTextDark]}>Скопировать</Text>
+        </TouchableOpacity>
 
         <Text style={styles.promoDescription}>
           Вы и ваш друг получаете 7 дней RUNA Premium, если он введёт ваш промокод при регистрации.
@@ -131,10 +145,7 @@ const ReferralView: React.FC<ReferralViewProps> = ({ onBack }) => {
       </ScrollView>
 
       {/* Bottom actions */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSoft]} onPress={handleCopy}>
-          <Text style={[styles.actionText, styles.actionTextDark]}>Скопировать</Text>
-        </TouchableOpacity>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 20 }]}>
         <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={handleSend}>
           <Text style={styles.actionText}>Отправить</Text>
         </TouchableOpacity>
@@ -195,12 +206,34 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,
+  },
+  copyButton: {
+    width: '100%',
+    height: 42,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 12,
+    backgroundColor: '#FDEBD0',
+    borderWidth: 2,
+    borderColor: '#FDEBD0',
+    shadowColor: '#FDEBD0',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  copyButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   promoCode: {
     fontSize: 36,
@@ -278,27 +311,40 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    backgroundColor: '#788FAC',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.18)',
+    paddingTop: 24,
+    paddingBottom: 10,
+    backgroundColor: 'transparent',
   },
   actionBtn: {
-    height: 48,
+    height: 42,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
     paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 5,
   },
   actionBtnSoft: {
     backgroundColor: '#FDEBD0',
+    borderColor: '#FDEBD0',
+    shadowColor: '#FDEBD0',
   },
   actionBtnPrimary: {
     backgroundColor: '#D4A373',
+    borderColor: '#D4A373',
+    shadowColor: '#D4A373',
   },
   actionBtnPrimaryDark: {
     backgroundColor: '#1D4981',
+    borderColor: '#1D4981',
+    shadowColor: '#1D4981',
   },
   actionText: {
     color: '#FFFFFF',

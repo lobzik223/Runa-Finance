@@ -7,7 +7,6 @@ import {
   ScrollView,
   Dimensions,
   Image,
-  Alert,
   TextInput,
   Platform,
 } from 'react-native';
@@ -17,6 +16,7 @@ import ReferralView from './ReferralView';
 import PremiumView from './PremiumView';
 import PrivacyPolicyView from './PrivacyPolicyView';
 import { apiService, type User } from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -28,6 +28,7 @@ interface ProfileViewProps {
 
 const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout }) => {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [showReferral, setShowReferral] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -106,7 +107,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
 
   const handleAvatarPress = async () => {
     // ВРЕМЕННО ОТКЛЮЧЕНО для диагностики ошибки
-    Alert.alert('Информация', 'Функция выбора аватарки временно отключена');
+    toast.info('Функция выбора аватарки временно отключена');
     return;
     
     // try {
@@ -155,11 +156,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
 
   const handleUpdateName = async () => {
     if (!newName.trim()) {
-      Alert.alert('Ошибка', 'Введите имя');
+      toast.error('Введите имя');
       return;
     }
     if (newName.trim().length > 15) {
-      Alert.alert('Ошибка', 'Имя должно быть не длиннее 15 символов');
+      toast.error('Имя должно быть не длиннее 15 символов');
       return;
     }
     if (newName.trim() === user?.name) {
@@ -174,9 +175,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
       setUser(res.user);
       setNewName(res.user.name);
       setIsEditingName(false);
-      Alert.alert('Успех', 'Имя обновлено');
+      toast.success('Имя обновлено');
     } catch (e: any) {
-      Alert.alert('Ошибка', e.message || 'Не удалось обновить имя');
+      toast.error(e.message || 'Не удалось обновить имя');
     } finally {
       setSaving(false);
     }

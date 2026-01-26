@@ -9,14 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  Alert,
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../services/api';
-import { AppleIcon } from './common/icons/AppleIcon';
 import { GoogleIcon } from './common/icons/GoogleIcon';
+import { useToast } from '../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -27,6 +26,7 @@ interface RegistrationViewProps {
 
 const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, onComplete }) => {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,31 +36,31 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
   const handleRegistration = async () => {
     // Валидация
     if (!name.trim()) {
-      Alert.alert('Ошибка', 'Введите имя');
+      toast.error('Введите имя');
       return;
     }
     if (name.trim().length > 15) {
-      Alert.alert('Ошибка', 'Имя должно быть не длиннее 15 символов');
+      toast.error('Имя должно быть не длиннее 15 символов');
       return;
     }
 
     if (!email.trim()) {
-      Alert.alert('Ошибка', 'Введите email');
+      toast.error('Введите email');
       return;
     }
 
     if (!email.includes('@')) {
-      Alert.alert('Ошибка', 'Введите корректный email');
+      toast.error('Введите корректный email');
       return;
     }
 
     if (!password) {
-      Alert.alert('Ошибка', 'Введите пароль');
+      toast.error('Введите пароль');
       return;
     }
 
     if (password.length < 8) {
-      Alert.alert('Ошибка', 'Пароль должен содержать минимум 8 символов');
+      toast.error('Пароль должен содержать минимум 8 символов');
       return;
     }
 
@@ -85,20 +85,17 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
       const response = await apiService.register(registerData);
 
       console.log('[Registration] Успешная регистрация:', response.user);
-      Alert.alert('Успех', `Добро пожаловать, ${response.user.name}!`, [
-        {
-          text: 'OK',
-          onPress: () => {
-            if (onComplete) {
-              onComplete();
-            }
-          },
-        },
-      ]);
+      toast.success(`Добро пожаловать, ${response.user.name}!`);
+      // Небольшая задержка для показа уведомления
+      setTimeout(() => {
+        if (onComplete) {
+          onComplete();
+        }
+      }, 500);
     } catch (error: any) {
       console.error('[Registration] Ошибка регистрации:', error);
       const errorMessage = error.message || 'Ошибка при регистрации. Попробуйте еще раз.';
-      Alert.alert('Ошибка регистрации', errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -216,7 +213,11 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
             disabled={loading}
           >
             <View style={styles.socialIcon}>
-              <AppleIcon size={20} color="#FFFFFF" />
+              <Image 
+                source={require('../../images/icon/appleicon.png')} 
+                style={{ width: 26, height: 26 }} 
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.socialButtonText}>Зарегистрироваться с Apple</Text>
           </TouchableOpacity>
