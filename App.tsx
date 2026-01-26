@@ -86,8 +86,10 @@ export default function App() {
         if (savedScreen && savedScreen !== 'maintenance' && savedScreen !== 'loading') {
           handleNavigate(savedScreen);
         } else if (isAuthed) {
-          // Если был авторизован, возвращаем на main
-          handleNavigate('main');
+          // Если был авторизован, возвращаем на main (только если не на main уже)
+          if (currentScreen !== 'main') {
+            handleNavigate('main');
+          }
         } else {
           handleNavigate('login');
         }
@@ -100,8 +102,9 @@ export default function App() {
       // Бэкенд недоступен
       if (showMaintenance && !isMaintenance) {
         // Сохраняем текущий экран перед показом maintenance
+        // НО: не сохраняем loading, чтобы не возвращаться на него
         const current = currentScreen;
-        if (current !== 'maintenance' && current !== 'loading') {
+        if (current !== 'maintenance' && current !== 'loading' && current !== 'pincode') {
           setSavedScreen(current);
           void AsyncStorage.setItem(LAST_SCREEN_KEY, current);
         }
@@ -160,6 +163,9 @@ export default function App() {
   };
 
   const handlePinCodeComplete = () => {
+    // Убеждаемся, что флаг авторизации установлен перед переходом
+    void AsyncStorage.setItem(AUTH_COMPLETED_KEY, 'true');
+    setIsAuthed(true);
     // Переходим на экран загрузки для подгрузки данных
     setIsLoadingAfterPin(true);
     handleNavigate('loading');
@@ -168,6 +174,11 @@ export default function App() {
   // Проверка авторизации при старте приложения
   useEffect(() => {
     const checkAuth = async () => {
+      // Если уже на main экране и авторизован, не выполняем проверку (избегаем бага)
+      if (currentScreen === 'main' && isAuthed) {
+        return;
+      }
+
       try {
         // Восстанавливаем сохраненный экран из AsyncStorage
         const savedScreenFromStorage = await AsyncStorage.getItem(LAST_SCREEN_KEY);
@@ -242,6 +253,12 @@ export default function App() {
         setIsAuthed(true);
 
         // Сессия валидна — проверяем PIN статус и идем на PIN
+        // НО: если уже на main экране, не переходим на pincode (избегаем бага с возвратом)
+        if (currentScreen === 'main') {
+          setIsCheckingAuth(false);
+          return;
+        }
+
         try {
           const status = await apiService.getPinStatus();
           setPinCodeMode(status.pinSet ? 'enter' : 'create');
@@ -262,7 +279,7 @@ export default function App() {
     };
 
     void checkAuth();
-  }, [handleNavigate, checkBackendConnection]);
+  }, [handleNavigate, checkBackendConnection, currentScreen, isAuthed]);
 
   // Обработка возврата в приложение для перезагрузки данных
   useEffect(() => {
@@ -275,7 +292,8 @@ export default function App() {
             await checkBackendConnection(false);
             
             // Если на главном экране, проверяем токен и обновляем данные
-            if (currentScreen === 'main') {
+            // НО: не переключаем экран, если уже на main и авторизован
+            if (currentScreen === 'main' && isAuthed) {
               const token = await apiService.getToken();
               if (token) {
                 // Пробуем обновить токен если нужно
@@ -293,14 +311,18 @@ export default function App() {
                         // Если не удалось обновить, очищаем и переходим на логин
                         console.warn('Ошибка обновления токена при возврате:', refreshError);
                         await apiService.clearAuth();
+                        await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
+                        setIsAuthed(false);
                         handleNavigate('login');
                       }
                     } else {
                       await apiService.clearAuth();
+                      await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
+                      setIsAuthed(false);
                       handleNavigate('login');
                     }
                   } else {
-                    // Другая ошибка, просто логируем
+                    // Другая ошибка, просто логируем (не переключаем экран)
                     console.warn('Ошибка при возврате в приложение:', e);
                   }
                 }
@@ -316,7 +338,7 @@ export default function App() {
     return () => {
       subscription.remove();
     };
-  }, [currentScreen, handleNavigate, checkBackendConnection]);
+  }, [currentScreen, handleNavigate, checkBackendConnection, isAuthed]);
 
   // Загружаем MainView и данные после ввода PIN
   React.useEffect(() => {
