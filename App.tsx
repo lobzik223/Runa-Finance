@@ -9,12 +9,14 @@ import LoadingView from './src/components/LoadingView';
 import RegistrationView from './src/components/RegistrationView';
 import LoginView from './src/components/LoginView';
 import PinCodeView from './src/components/PinCodeView';
+import MaintenanceScreen from './src/components/MaintenanceScreen';
 // Ленивая загрузка MainView для избежания проблем с expo-file-system при импорте
 import { apiService } from './src/services/api';
 import { ToastProvider } from './src/contexts/ToastContext';
 
-type ScreenType = 'loading' | 'login' | 'registration' | 'pincode' | 'main';
+type ScreenType = 'loading' | 'login' | 'registration' | 'pincode' | 'main' | 'maintenance';
 const AUTH_COMPLETED_KEY = '@runa_finance:auth_completed';
+const LAST_SCREEN_KEY = '@runa_finance:last_screen';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('loading');
@@ -24,6 +26,9 @@ export default function App() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoadingAfterPin, setIsLoadingAfterPin] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
+  const [isMaintenance, setIsMaintenance] = useState(false);
+  const [savedScreen, setSavedScreen] = useState<ScreenType | null>(null);
+  const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Глобальный хендлер: если сессия умерла (refresh тоже невалиден) — возвращаем на логин.
   useEffect(() => {
@@ -34,10 +39,24 @@ export default function App() {
       setCurrentScreen('login');
     });
 
+    // Хендлер для недоступности бэкенда
+    apiService.setBackendUnavailableHandler(() => {
+      if (currentScreen !== 'maintenance') {
+        const current = currentScreen;
+        if (current !== 'maintenance' && current !== 'loading') {
+          setSavedScreen(current);
+          void AsyncStorage.setItem(LAST_SCREEN_KEY, current);
+        }
+        setIsMaintenance(true);
+        setCurrentScreen('maintenance');
+      }
+    });
+
     return () => {
       apiService.setAuthInvalidatedHandler(null);
+      apiService.setBackendUnavailableHandler(null);
     };
-  }, []);
+  }, [currentScreen]);
 
   const handleNavigate = useCallback((screen: ScreenType) => {
     setCurrentScreen((prevScreen) => {
@@ -46,9 +65,73 @@ export default function App() {
       const nextIndex = screenOrder.indexOf(screen);
       
       navigationDirection.current = nextIndex > currentIndex ? 'forward' : 'backward';
+      
+      // Сохраняем экран (кроме maintenance и loading)
+      if (screen !== 'maintenance' && screen !== 'loading') {
+        void AsyncStorage.setItem(LAST_SCREEN_KEY, screen);
+      }
+      
       return screen;
     });
   }, []);
+
+  // Проверка соединения с бэкендом
+  const checkBackendConnection = useCallback(async (showMaintenance: boolean = true) => {
+    try {
+      await apiService.healthCheck(3, 1000);
+      // Соединение восстановлено
+      if (isMaintenance) {
+        setIsMaintenance(false);
+        // Восстанавливаем сохраненный экран
+        if (savedScreen && savedScreen !== 'maintenance' && savedScreen !== 'loading') {
+          handleNavigate(savedScreen);
+        } else if (isAuthed) {
+          // Если был авторизован, возвращаем на main
+          handleNavigate('main');
+        } else {
+          handleNavigate('login');
+        }
+        setSavedScreen(null);
+        // Очищаем сохраненный экран из AsyncStorage
+        void AsyncStorage.removeItem(LAST_SCREEN_KEY);
+      }
+      return true;
+    } catch (error) {
+      // Бэкенд недоступен
+      if (showMaintenance && !isMaintenance) {
+        // Сохраняем текущий экран перед показом maintenance
+        const current = currentScreen;
+        if (current !== 'maintenance' && current !== 'loading') {
+          setSavedScreen(current);
+          void AsyncStorage.setItem(LAST_SCREEN_KEY, current);
+        }
+        setIsMaintenance(true);
+        setCurrentScreen('maintenance');
+      }
+      return false;
+    }
+  }, [isMaintenance, savedScreen, isAuthed, currentScreen, handleNavigate]);
+
+  // Периодическая проверка соединения при показе maintenance
+  useEffect(() => {
+    if (isMaintenance) {
+      // Проверяем каждые 5 секунд
+      healthCheckIntervalRef.current = setInterval(() => {
+        void checkBackendConnection(false);
+      }, 5000);
+    } else {
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+        healthCheckIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+      }
+    };
+  }, [isMaintenance, checkBackendConnection]);
 
   const handleLoginComplete = () => {
     // После логина считаем сессию валидной и проверяем: есть ли PIN. Если нет — создаём.
@@ -86,6 +169,19 @@ export default function App() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Восстанавливаем сохраненный экран из AsyncStorage
+        const savedScreenFromStorage = await AsyncStorage.getItem(LAST_SCREEN_KEY);
+        if (savedScreenFromStorage && savedScreenFromStorage !== 'maintenance' && savedScreenFromStorage !== 'loading') {
+          setSavedScreen(savedScreenFromStorage as ScreenType);
+        }
+
+        // Сначала проверяем соединение с бэкендом
+        const isConnected = await checkBackendConnection(true);
+        if (!isConnected) {
+          // Если бэкенд недоступен, maintenance экран уже показан
+          return;
+        }
+
         const token = await apiService.getToken();
         const refreshToken = await apiService.getRefreshToken();
 
@@ -166,41 +262,47 @@ export default function App() {
     };
 
     void checkAuth();
-  }, [handleNavigate]);
+  }, [handleNavigate, checkBackendConnection]);
 
   // Обработка возврата в приложение для перезагрузки данных
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active' && currentScreen === 'main') {
-        // При возврате в приложение на главном экране проверяем токен и обновляем данные
+      if (nextAppState === 'active') {
+        // При возврате в приложение проверяем соединение с бэкендом
         void (async () => {
           try {
-            const token = await apiService.getToken();
-            if (token) {
-              // Пробуем обновить токен если нужно
-              try {
-                await apiService.getMe();
-              } catch (e: any) {
-                // Если токен истек, пробуем обновить
-                const errorMsg = String(e?.message || '').toLowerCase();
-                if (errorMsg.includes('unauthorized') || errorMsg.includes('401')) {
-                  const refreshToken = await apiService.getRefreshToken();
-                  if (refreshToken) {
-                    try {
-                      await apiService.refreshAccessToken();
-                    } catch (refreshError) {
-                      // Если не удалось обновить, очищаем и переходим на логин
-                      console.warn('Ошибка обновления токена при возврате:', refreshError);
+            // Проверяем соединение (не показываем maintenance сразу, только если действительно недоступен)
+            await checkBackendConnection(false);
+            
+            // Если на главном экране, проверяем токен и обновляем данные
+            if (currentScreen === 'main') {
+              const token = await apiService.getToken();
+              if (token) {
+                // Пробуем обновить токен если нужно
+                try {
+                  await apiService.getMe();
+                } catch (e: any) {
+                  // Если токен истек, пробуем обновить
+                  const errorMsg = String(e?.message || '').toLowerCase();
+                  if (errorMsg.includes('unauthorized') || errorMsg.includes('401')) {
+                    const refreshToken = await apiService.getRefreshToken();
+                    if (refreshToken) {
+                      try {
+                        await apiService.refreshAccessToken();
+                      } catch (refreshError) {
+                        // Если не удалось обновить, очищаем и переходим на логин
+                        console.warn('Ошибка обновления токена при возврате:', refreshError);
+                        await apiService.clearAuth();
+                        handleNavigate('login');
+                      }
+                    } else {
                       await apiService.clearAuth();
                       handleNavigate('login');
                     }
                   } else {
-                    await apiService.clearAuth();
-                    handleNavigate('login');
+                    // Другая ошибка, просто логируем
+                    console.warn('Ошибка при возврате в приложение:', e);
                   }
-                } else {
-                  // Другая ошибка, просто логируем
-                  console.warn('Ошибка при возврате в приложение:', e);
                 }
               }
             }
@@ -214,7 +316,7 @@ export default function App() {
     return () => {
       subscription.remove();
     };
-  }, [currentScreen, handleNavigate]);
+  }, [currentScreen, handleNavigate, checkBackendConnection]);
 
   // Загружаем MainView и данные после ввода PIN
   React.useEffect(() => {
@@ -316,6 +418,11 @@ export default function App() {
                 <Text style={{ color: '#FFFFFF' }}>Загрузка...</Text>
               </View>
             )}
+          </View>
+        )}
+        {currentScreen === 'maintenance' && (
+          <View key="maintenance" style={styles.animatedContainer}>
+            <MaintenanceScreen message="Ведутся работы на сервере" />
           </View>
         )}
         </View>

@@ -220,6 +220,9 @@ class ApiService {
   private readonly baseURL: string;
   private refreshInFlight: Promise<void> | null = null;
   private onAuthInvalidated: (() => void) | null = null;
+  private onBackendUnavailable: (() => void) | null = null;
+  private consecutiveFailures: number = 0;
+  private readonly MAX_CONSECUTIVE_FAILURES = 3;
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -227,6 +230,38 @@ class ApiService {
 
   setAuthInvalidatedHandler(handler: (() => void) | null) {
     this.onAuthInvalidated = handler;
+  }
+
+  setBackendUnavailableHandler(handler: (() => void) | null) {
+    this.onBackendUnavailable = handler;
+  }
+
+  private handleBackendError(error: any): void {
+    const errorMsg = String(error?.message || '').toLowerCase();
+    const isNetworkError = 
+      errorMsg.includes('сеть') ||
+      errorMsg.includes('network') ||
+      errorMsg.includes('failed to fetch') ||
+      errorMsg.includes('502') ||
+      errorMsg.includes('503') ||
+      errorMsg.includes('504') ||
+      errorMsg.includes('timeout');
+    
+    if (isNetworkError) {
+      this.consecutiveFailures++;
+      if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
+        this.consecutiveFailures = 0; // Сбрасываем счетчик
+        this.onBackendUnavailable?.();
+      }
+    } else {
+      // Сбрасываем счетчик при других ошибках
+      this.consecutiveFailures = 0;
+    }
+  }
+
+  private handleBackendSuccess(): void {
+    // Сбрасываем счетчик при успешном запросе
+    this.consecutiveFailures = 0;
   }
 
   private async invalidateAuth(): Promise<void> {
@@ -365,8 +400,10 @@ class ApiService {
       }
 
       if (isNetworkError) {
+        this.handleBackendError(fetchError);
         throw new Error('Ошибка сети. Проверьте подключение к интернету и доступность сервера.');
       }
+      this.handleBackendError(fetchError);
       throw new Error(rawMsg || 'Ошибка сети');
     }
 
@@ -400,6 +437,13 @@ class ApiService {
           .join('\n');
       }
       const isAuthError = response.status === 401 || response.status === 403;
+      const isServerError = response.status >= 500 || response.status === 502 || response.status === 503 || response.status === 504;
+      
+      // Обрабатываем ошибки сервера
+      if (isServerError) {
+        this.handleBackendError(new Error(`Server error: ${response.status}`));
+      }
+      
       // Не спамим логами LogBox на ожидаемых auth-ошибках (401/403).
       if (!meta?.silent && !isAuthError) {
         console.error(`[API Error] ${endpoint}:`, errorMessage);
@@ -408,6 +452,8 @@ class ApiService {
       throw new Error(errorMessage);
     }
 
+    // Успешный запрос - сбрасываем счетчик ошибок
+    this.handleBackendSuccess();
     return data as T;
   }
 
@@ -856,9 +902,33 @@ class ApiService {
     });
   }
 
-  // Проверка подключения к API
-  async healthCheck(): Promise<{ status: string; message: string }> {
-    return await this.request<{ status: string; message: string }>('/health');
+  // Проверка подключения к API с retry логикой
+  async healthCheck(retries: number = 3, delay: number = 1000): Promise<{ status: string; message: string }> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const result = await this.rawRequest<{ status: string; message: string }>(
+          '/health',
+          { method: 'GET' },
+          null,
+          { silent: true },
+        );
+        return result;
+      } catch (error: any) {
+        const isLastAttempt = attempt === retries;
+        const isNetworkError = 
+          String(error?.message || '').toLowerCase().includes('сеть') ||
+          String(error?.message || '').toLowerCase().includes('network') ||
+          String(error?.message || '').toLowerCase().includes('failed to fetch');
+        
+        if (isLastAttempt || !isNetworkError) {
+          throw error;
+        }
+        
+        // Ждем перед следующей попыткой
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    throw new Error('Не удалось подключиться к серверу');
   }
 
   // PIN status
