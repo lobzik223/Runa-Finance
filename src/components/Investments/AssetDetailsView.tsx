@@ -51,10 +51,28 @@ const AssetDetailsView: React.FC<AssetDetailsViewProps> = ({ onBack, assetId, as
   };
 
   const loadCurrentPrice = async (symbol: string) => {
-    // Цена недоступна без Tinkoff интеграции
-    setPriceLoading(false);
-    setCurrentPrice(null);
+    setPriceLoading(true);
+    try {
+      const quote = await apiService.getAssetQuote(symbol);
+      setCurrentPrice(quote.price);
+    } catch (error: any) {
+      console.error('Failed to load price:', error);
+      setCurrentPrice(null);
+    } finally {
+      setPriceLoading(false);
+    }
   };
+
+  // Обновление цены каждые 10 секунд
+  useEffect(() => {
+    if (assetData?.symbol) {
+      const interval = setInterval(() => {
+        void loadCurrentPrice(assetData.symbol);
+      }, 10000);
+
+      return () => clearInterval(interval);
+    }
+  }, [assetData?.symbol]);
 
   const handleDelete = () => {
     Alert.alert(
@@ -246,8 +264,17 @@ const AssetDetailsView: React.FC<AssetDetailsViewProps> = ({ onBack, assetId, as
 
         {/* Action Buttons */}
         <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity
+            style={[styles.buyButton, { marginRight: 12 }]}
+            onPress={() => {
+              // TODO: Add buy more functionality
+              Alert.alert('Информация', 'Функция докупки будет добавлена');
+            }}
+          >
+            <Text style={styles.buyButtonText}>Докупить</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-            <Text style={styles.deleteButtonText}>Удалить из портфеля</Text>
+            <Text style={styles.deleteButtonText}>Удалить</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -505,6 +532,23 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   editButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  buyButton: {
+    flex: 1,
+    backgroundColor: '#4CAF50',
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buyButtonText: {
     fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',

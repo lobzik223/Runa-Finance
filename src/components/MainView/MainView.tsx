@@ -58,6 +58,7 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
   const [selectedCategory, setSelectedCategory] = useState<{ id: number; name: string } | null>(null);
   const [analytics, setAnalytics] = useState<TransactionsAnalyticsResponse | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [showAssetView, setShowAssetView] = useState(false);
   
   // Анимация плавного перелива цвета для "ИИ"
   const colorAnim = useRef(new Animated.Value(0)).current;
@@ -246,8 +247,12 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
     if (showInvestments) {
       return (
         <InvestmentsView
-          onBack={() => setShowInvestments(false)}
+          onBack={() => {
+            setShowInvestments(false);
+            setShowAssetView(false);
+          }}
           onNavigate={handleNavigate}
+          onShowAssetView={(show) => setShowAssetView(show)}
         />
       );
     }
@@ -565,7 +570,7 @@ const MainView: React.FC<MainViewProps> = ({ onLogout }) => {
       {renderContent()}
 
       {/* Bottom Navigation - Island Style */}
-      {!showChat && !showAnalytics && !showIncome && !showExpenses && !showCategories && !showPaymentMethod && (
+      {!showChat && !showAnalytics && !showIncome && !showExpenses && !showCategories && !showPaymentMethod && !showAssetView && (
         <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.bottomNav}>
           <TouchableOpacity 

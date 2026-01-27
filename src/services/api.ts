@@ -127,6 +127,16 @@ export interface Goal {
 
 export type InvestmentAssetType = 'STOCK' | 'BOND' | 'ETF' | 'CRYPTO' | 'OTHER';
 
+export type SearchAssetType = InvestmentAssetType | 'FUTURES';
+
+export interface AssetSearchResult {
+  symbol: string;
+  name: string;
+  type: SearchAssetType;
+  currency: string;
+  exchange?: string | null;
+}
+
 export interface InvestmentPortfolioAsset {
   assetId: number;
   symbol: string;
@@ -823,6 +833,62 @@ class ApiService {
     return await this.request('/investments/assets', {
       method: 'POST',
       body: JSON.stringify(params),
+    });
+  }
+
+  async searchInvestmentAssets(params: { query: string; assetType?: SearchAssetType | null }) {
+    const query = this.buildQuery(params);
+    return await this.request<AssetSearchResult[]>(`/investments/search${query}`, {
+      method: 'GET',
+    });
+  }
+
+  async getPopularAssets(category: 'popular' | 'falling' | 'rising' | 'dividend' = 'popular') {
+    const query = this.buildQuery({ category });
+    return await this.request<Array<{
+      ticker: string;
+      name: string;
+      price: number;
+      change: number;
+      changePercent: number;
+      currency: string;
+      exchange?: string | null;
+      type: string;
+      logo: string;
+    }>>(`/investments/popular${query}`, {
+      method: 'GET',
+    });
+  }
+
+  async getAssetCandles(params: {
+    ticker: string;
+    from: string;
+    to: string;
+    interval?: '1_MIN' | '5_MIN' | '15_MIN' | 'HOUR' | 'DAY';
+  }) {
+    const query = this.buildQuery(params);
+    return await this.request<Array<{
+      time: string;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    }>>(`/investments/candles${query}`, {
+      method: 'GET',
+    });
+  }
+
+  async getAssetQuote(ticker: string) {
+    return await this.request<{
+      ticker: string;
+      name: string;
+      price: number;
+      currency: string;
+      exchange?: string | null;
+      timestamp: string;
+    }>(`/investments/quotes/${ticker}`, {
+      method: 'GET',
     });
   }
 

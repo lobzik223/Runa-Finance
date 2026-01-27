@@ -7,10 +7,12 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddStockView from './AddStockView';
 import AssetDetailsView from './AssetDetailsView';
+import AssetViewScreen from './AssetViewScreen';
 import { apiService, type InvestmentsPortfolioResponse, type MarketNewsItem } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -18,17 +20,22 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 interface InvestmentsViewProps {
   onBack?: () => void;
   onNavigate?: (screen: 'main' | 'deposits' | 'goals' | 'investments' | 'profile') => void;
+  onShowAssetView?: (show: boolean) => void;
 }
 
-const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate }) => {
+const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, onShowAssetView }) => {
   const insets = useSafeAreaInsets();
   const [showAddStock, setShowAddStock] = useState(false);
   const [showAssetDetails, setShowAssetDetails] = useState(false);
+  const [showAssetView, setShowAssetView] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState<number>(0);
   const [selectedAssetName, setSelectedAssetName] = useState<string>('');
+  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string>('');
+  const [selectedAssetPrice, setSelectedAssetPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [portfolio, setPortfolio] = useState<InvestmentsPortfolioResponse | null>(null);
   const [news, setNews] = useState<MarketNewsItem[]>([]);
+  const [failedLogos, setFailedLogos] = useState<Record<string, boolean>>({});
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -47,6 +54,15 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
     }
   }, []);
 
+  // Обновление цен для реальных инвестиций пользователя каждые 10 секунд
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void reload();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [reload]);
+
 
 
   useEffect(() => {
@@ -54,6 +70,62 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
   }, [reload]);
 
   const assets = useMemo(() => portfolio?.assets ?? [], [portfolio]);
+
+  const handleLogoError = useCallback((symbol: string) => {
+    if (!symbol) return;
+    setFailedLogos((prev) => ({ ...prev, [symbol]: true }));
+  }, []);
+
+  const getAssetLogoUri = (symbol: string) => {
+    if (!symbol) return null;
+    const slug = symbol.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return slug ? `https://invest-brands.cdn-tinkoff.ru/${slug}x160.png` : null;
+  };
+
+  useEffect(() => {
+    onShowAssetView?.(showAssetView);
+  }, [showAssetView, onShowAssetView]);
+
+  if (showAssetView) {
+    return (
+      <AssetViewScreen
+        onBack={async () => {
+          setShowAssetView(false);
+          onShowAssetView?.(false);
+          await reload();
+        }}
+        asset={{
+          ticker: selectedAssetSymbol,
+          name: selectedAssetName,
+          price: selectedAssetPrice,
+        }}
+        onBuy={async (ticker: string, quantity: number, price: number) => {
+          try {
+            await apiService.addInvestmentAsset({
+              tickerOrName: ticker,
+              assetType: 'STOCK',
+              exchange: 'MOEX',
+              quantity,
+              purchasePrice: price,
+            });
+            await reload();
+            setShowAssetView(false);
+          } catch (error: any) {
+            console.error('Failed to buy asset:', error);
+          }
+        }}
+        onDelete={async () => {
+          try {
+            await apiService.deleteInvestmentAsset(selectedAssetId);
+            await reload();
+            setShowAssetView(false);
+          } catch (error: any) {
+            console.error('Failed to delete asset:', error);
+          }
+        }}
+      />
+    );
+  }
 
   if (showAssetDetails) {
     return (
@@ -78,6 +150,9 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
           if (updated) {
             await reload();
           }
+        }}
+        onShowAssetView={(show) => {
+          onShowAssetView?.(show);
         }}
       />
     );
@@ -139,8 +214,22 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
             <>
               {assets.map((a) => {
                 const pnl = a.pnlValue ?? 0;
+                const pnlRounded = Math.round(pnl);
                 const pct = a.totalCost > 0 && a.currentValue !== null ? (pnl / a.totalCost) * 100 : null;
                 const positive = pnl >= 0;
+                const currentValue = a.currentValue ?? a.totalCost;
+                const formattedValue = currentValue.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                });
+                const formattedInvested = a.totalCost.toLocaleString('ru-RU', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                });
+                const displaySymbol = (a.symbol || '').trim().toUpperCase();
+                const symbolLabel = displaySymbol || (a.symbol || '').trim() || '—';
+                const logoUri = displaySymbol ? getAssetLogoUri(displaySymbol) : null;
+
                 return (
                   <TouchableOpacity
                     key={a.assetId}
@@ -148,29 +237,54 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate })
                     onPress={() => {
                       setSelectedAssetId(a.assetId);
                       setSelectedAssetName(a.name);
-                      setShowAssetDetails(true);
+                      setSelectedAssetSymbol(symbolLabel);
+                      setSelectedAssetPrice(currentValue);
+                      setShowAssetView(true);
+                      onShowAssetView?.(true);
                     }}
                   >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.investmentName}>{a.name}</Text>
-                        <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                          {a.symbol}
-                        </Text>
+                    <View style={styles.investmentCardHeader}>
+                      <View style={styles.assetLogoWrapper}>
+                        {logoUri && !failedLogos[displaySymbol] ? (
+                          <Image
+                            source={{ uri: logoUri }}
+                            style={styles.assetLogo}
+                            onError={() => handleLogoError(displaySymbol)}
+                            resizeMode="contain"
+                          />
+                        ) : (
+                          <View style={styles.assetLogoFallback}>
+                            <Text style={styles.assetLogoFallbackText}>
+                              {symbolLabel.slice(0, 2)}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                      <Text style={[styles.investmentAmount, { textAlign: 'right' }]}>
-                        {(a.currentValue || a.totalCost).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
-                      </Text>
+                      <View style={styles.investmentTextBlock}>
+                        <Text style={styles.investmentName} numberOfLines={2}>
+                          {a.name}
+                        </Text>
+                        <Text style={styles.investmentSymbol}>{symbolLabel}</Text>
+                      </View>
+                      <View style={styles.investmentPriceBlock}>
+                        <Text style={styles.investmentAmount}>{formattedValue} ₽</Text>
+                        <Text style={styles.priceLabel}>Текущая стоимость</Text>
+                      </View>
                     </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, color: '#666' }}>
-                        Вложено: {a.totalCost.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+                    <View style={styles.investmentCardDivider} />
+                    <View style={styles.investmentFooterRow}>
+                      <Text style={styles.investmentFooterText}>
+                        Вложено: {formattedInvested} ₽
                       </Text>
-                      <Text style={positive ? styles.investmentChangePositive : styles.investmentChangeNegative}>
-                        {positive ? '+' : ''}
-                        {Math.round(pnl).toLocaleString('ru-RU')} ₽
-                        {pct !== null ? ` (${positive ? '+' : ''}${pct.toFixed(2)}%)` : ''}
-                      </Text>
+                      {pct !== null ? (
+                        <Text style={positive ? styles.investmentChangePositive : styles.investmentChangeNegative}>
+                          {positive ? '+' : ''}
+                          {pnlRounded.toLocaleString('ru-RU')} ₽
+                          {pct !== null ? ` (${positive ? '+' : ''}${pct.toFixed(2)}%)` : ''}
+                        </Text>
+                      ) : (
+                        <Text style={styles.investmentFooterText}>Нет данных</Text>
+                      )}
                     </View>
                   </TouchableOpacity>
                 );
@@ -213,11 +327,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#7792B8',
   },
   backgroundOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 2,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#7792B8',
     zIndex: 0,
   },
@@ -326,27 +436,90 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   investmentCard: {
-    backgroundColor: '#E8E0D4',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  investmentCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  assetLogoWrapper: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#E8E0D4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  assetLogo: {
+    width: 40,
+    height: 40,
+  },
+  assetLogoFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#D3D6DC',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assetLogoFallbackText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1D4981',
   },
   investmentName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
-    marginBottom: 8,
+    color: '#1D4981',
+    marginBottom: 4,
+  },
+  investmentTextBlock: {
+    flex: 1,
+  },
+  investmentSymbol: {
+    fontSize: 12,
+    letterSpacing: 0.4,
+    color: '#666666',
+  },
+  investmentPriceBlock: {
+    alignItems: 'flex-end',
+    marginLeft: 12,
   },
   investmentAmount: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#A0522D',
-    marginBottom: 4,
+    color: '#1D4981',
+    marginBottom: 2,
+  },
+  priceLabel: {
+    fontSize: 11,
+    color: '#888888',
+  },
+  investmentCardDivider: {
+    height: 1,
+    backgroundColor: '#E5E5E5',
+    marginBottom: 8,
+  },
+  investmentFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  investmentFooterText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   investmentChangePositive: {
     fontSize: 14,

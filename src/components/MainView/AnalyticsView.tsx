@@ -8,7 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, G } from 'react-native-svg';
 import { apiService, type TransactionsAnalyticsResponse } from '../../services/api';
 
@@ -119,114 +119,118 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
   const breakdown = activeTab === 'expense' ? analytics?.breakdown.expense || [] : analytics?.breakdown.income || [];
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.backgroundOverlay} />
-      
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Аналитика</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.wrapper}>
+        <View style={styles.backgroundOverlay} />
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Аналитика</Text>
+        </View>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Top Summary Card with Chart */}
+          <View style={styles.summaryCard}>
+            <View style={styles.chartContainer}>
+              <View style={styles.donutWrap}>
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <DonutChart
+                    size={120}
+                    strokeWidth={22}
+                    fraction={incomePercent / 100}
+                    trackColor={DONUT_TRACK_COLOR}
+                    progressColor={DONUT_PROGRESS_COLOR}
+                  />
+                )}
+              </View>
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={[styles.summaryLabel, styles.expenseLabel]}>Расходы</Text>
+              <Text style={[styles.summaryPercent, styles.expensePercent]}>{expensePercent}%</Text>
+              <Text style={styles.summaryLabel}>Доходы</Text>
+              <Text style={styles.summaryPercent}>{incomePercent}%</Text>
+            </View>
+          </View>
+
+          {/* Tab Switcher */}
+          <View style={styles.tabsContainer}>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'expense' && styles.tabActive]}
+              onPress={() => setActiveTab('expense')}
+            >
+              <Text style={[styles.tabText, activeTab === 'expense' && styles.tabTextActive]}>Расходы</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'income' && styles.tabActive]}
+              onPress={() => setActiveTab('income')}
+            >
+              <Text style={[styles.tabText, activeTab === 'income' && styles.tabTextActive]}>Доходы</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Current Selection Percent */}
+          <View style={styles.selectionPercentBadge}>
+            <Text style={styles.selectionPercentText}>
+              {activeTab === 'expense' ? `${expensePercent}%` : `${incomePercent}%`}
+            </Text>
+          </View>
+
+          {/* Categories Progress List */}
+          {!loading && breakdown.length === 0 ? (
+            <View style={styles.categoryCard}>
+              <Text style={styles.categoryTitle}>Нет данных</Text>
+              <Text style={styles.amountText}>0₽</Text>
+            </View>
+          ) : (
+            breakdown.slice(0, 10).map((row) => (
+              <View key={`${activeTab}-${row.categoryId}`} style={styles.categoryCard}>
+                <View style={styles.categoryHeader}>
+                  <Text style={[styles.categoryTitle, { color: '#1D4981' }]}>{row.categoryName}</Text>
+                  <Text style={styles.categoryPercent}>{Math.round(row.percent)}%</Text>
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <View style={[styles.progressBar, { width: `${Math.min(100, Math.max(0, row.percent))}%`, backgroundColor: '#1D4981' }]} />
+                </View>
+                <Text style={styles.amountText}>{Math.round(row.amount).toLocaleString('ru-RU')}₽</Text>
+              </View>
+            ))
+          )}
+
+        </ScrollView>
       </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Top Summary Card with Chart */}
-        <View style={styles.summaryCard}>
-          <View style={styles.chartContainer}>
-            <View style={styles.donutWrap}>
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <DonutChart
-                  size={120}
-                  strokeWidth={22}
-                  fraction={incomePercent / 100}
-                  trackColor={DONUT_TRACK_COLOR}
-                  progressColor={DONUT_PROGRESS_COLOR}
-                />
-              )}
-            </View>
-          </View>
-          <View style={styles.summaryTextContainer}>
-            <Text style={[styles.summaryLabel, styles.expenseLabel]}>Расходы</Text>
-            <Text style={[styles.summaryPercent, styles.expensePercent]}>{expensePercent}%</Text>
-            <Text style={styles.summaryLabel}>Доходы</Text>
-            <Text style={styles.summaryPercent}>{incomePercent}%</Text>
-          </View>
-        </View>
-
-        {/* Tab Switcher */}
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'expense' && styles.tabActive]}
-            onPress={() => setActiveTab('expense')}
-          >
-            <Text style={[styles.tabText, activeTab === 'expense' && styles.tabTextActive]}>Расходы</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'income' && styles.tabActive]}
-            onPress={() => setActiveTab('income')}
-          >
-            <Text style={[styles.tabText, activeTab === 'income' && styles.tabTextActive]}>Доходы</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Current Selection Percent */}
-        <View style={styles.selectionPercentBadge}>
-          <Text style={styles.selectionPercentText}>
-            {activeTab === 'expense' ? `${expensePercent}%` : `${incomePercent}%`}
-          </Text>
-        </View>
-
-        {/* Categories Progress List */}
-        {!loading && breakdown.length === 0 ? (
-          <View style={styles.categoryCard}>
-            <Text style={styles.categoryTitle}>Нет данных</Text>
-            <Text style={styles.amountText}>0₽</Text>
-          </View>
-        ) : (
-          breakdown.slice(0, 10).map((row) => (
-            <View key={`${activeTab}-${row.categoryId}`} style={styles.categoryCard}>
-              <View style={styles.categoryHeader}>
-                <Text style={[styles.categoryTitle, { color: '#1D4981' }]}>{row.categoryName}</Text>
-                <Text style={styles.categoryPercent}>{Math.round(row.percent)}%</Text>
-              </View>
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: `${Math.min(100, Math.max(0, row.percent))}%`, backgroundColor: '#1D4981' }]} />
-              </View>
-              <Text style={styles.amountText}>{Math.round(row.amount).toLocaleString('ru-RU')}₽</Text>
-            </View>
-          ))
-        )}
-
-      </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#788FAC',
+  },
   wrapper: {
     flex: 1,
     backgroundColor: '#788FAC',
   },
   backgroundOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: '#788FAC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+    marginBottom: 12,
   },
   backButton: {
     width: 40,
@@ -252,6 +256,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
+    paddingTop: 6,
   },
   summaryCard: {
     backgroundColor: '#1D4981',

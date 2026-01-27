@@ -29,6 +29,7 @@ export default function App() {
   const [isMaintenance, setIsMaintenance] = useState(false);
   const [savedScreen, setSavedScreen] = useState<ScreenType | null>(null);
   const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const initialAuthCheckedRef = useRef(false);
 
   // Глобальный хендлер: если сессия умерла (refresh тоже невалиден) — возвращаем на логин.
   useEffect(() => {
@@ -36,6 +37,8 @@ export default function App() {
       setMainViewComponent(null);
       setPinCodeMode('enter');
       setIsCheckingAuth(false);
+      setIsAuthed(false);
+      initialAuthCheckedRef.current = false; // Разрешаем повторную проверку
       setCurrentScreen('login');
     });
 
@@ -168,16 +171,21 @@ export default function App() {
     setIsAuthed(true);
     // Переходим на экран загрузки для подгрузки данных
     setIsLoadingAfterPin(true);
+    initialAuthCheckedRef.current = true; // Помечаем, что авторизация завершена
     handleNavigate('loading');
   };
 
-  // Проверка авторизации при старте приложения
+  // Проверка авторизации при старте приложения (только один раз!)
   useEffect(() => {
+    // Проверяем авторизацию только один раз при старте
+    if (initialAuthCheckedRef.current) {
+      return;
+    }
+
     const checkAuth = async () => {
-      // Если уже на main экране и авторизован, не выполняем проверку (избегаем бага)
-      if (currentScreen === 'main' && isAuthed) {
-        return;
-      }
+      // Минимальное время показа Loading экрана (2.5 секунды)
+      const minLoadingTime = 2500;
+      const startTime = Date.now();
 
       try {
         // Восстанавливаем сохраненный экран из AsyncStorage
@@ -190,6 +198,7 @@ export default function App() {
         const isConnected = await checkBackendConnection(true);
         if (!isConnected) {
           // Если бэкенд недоступен, maintenance экран уже показан
+          initialAuthCheckedRef.current = true;
           return;
         }
 
@@ -201,10 +210,18 @@ export default function App() {
 
         // Если нет токенов или не завершён вход ранее — всё очищаем и на логин
         if ((!token && !refreshToken) || authCompleted !== 'true') {
+          // Ждем минимум 2.5 секунды показа Loading экрана
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          if (remainingTime > 0) {
+            await new Promise(resolve => setTimeout(resolve, remainingTime));
+          }
+          
           setIsAuthed(false);
           setIsCheckingAuth(false);
           await apiService.clearAuth();
           await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
+          initialAuthCheckedRef.current = true;
           handleNavigate('login');
           return;
         }
@@ -241,11 +258,19 @@ export default function App() {
         }
 
         if (!authed) {
+          // Ждем минимум 2.5 секунды показа Loading экрана
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          if (remainingTime > 0) {
+            await new Promise(resolve => setTimeout(resolve, remainingTime));
+          }
+          
           // Если сессия не валидна — чистим и уводим на логин.
           await apiService.clearAuth();
           await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
           setIsAuthed(false);
           setIsCheckingAuth(false);
+          initialAuthCheckedRef.current = true;
           handleNavigate('login');
           return;
         }
@@ -253,33 +278,45 @@ export default function App() {
         setIsAuthed(true);
 
         // Сессия валидна — проверяем PIN статус и идем на PIN
-        // НО: если уже на main экране, не переходим на pincode (избегаем бага с возвратом)
-        if (currentScreen === 'main') {
-          setIsCheckingAuth(false);
-          return;
-        }
-
         try {
           const status = await apiService.getPinStatus();
           setPinCodeMode(status.pinSet ? 'enter' : 'create');
         } catch {
           setPinCodeMode('enter');
         } finally {
+          // Ждем минимум 2.5 секунды показа Loading экрана
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+          if (remainingTime > 0) {
+            await new Promise(resolve => setTimeout(resolve, remainingTime));
+          }
+          
+          initialAuthCheckedRef.current = true;
           setIsCheckingAuth(false);
           handleNavigate('pincode');
         }
         return;
       } catch (error) {
         console.error('Ошибка проверки авторизации:', error);
+        
+        // Ждем минимум 2.5 секунды показа Loading экрана
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
+        if (remainingTime > 0) {
+          await new Promise(resolve => setTimeout(resolve, remainingTime));
+        }
+        
         setIsAuthed(false);
         await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
         setIsCheckingAuth(false);
+        initialAuthCheckedRef.current = true;
         handleNavigate('login');
       }
     };
 
     void checkAuth();
-  }, [handleNavigate, checkBackendConnection, currentScreen, isAuthed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Запускаем только один раз при монтировании компонента
 
   // Обработка возврата в приложение для перезагрузки данных
   useEffect(() => {
@@ -313,12 +350,14 @@ export default function App() {
                         await apiService.clearAuth();
                         await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
                         setIsAuthed(false);
+                        initialAuthCheckedRef.current = false; // Разрешаем повторную проверку
                         handleNavigate('login');
                       }
                     } else {
                       await apiService.clearAuth();
                       await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
                       setIsAuthed(false);
+                      initialAuthCheckedRef.current = false; // Разрешаем повторную проверку
                       handleNavigate('login');
                     }
                   } else {
@@ -351,11 +390,12 @@ export default function App() {
             setMainViewComponent(() => mainViewModule.default);
           }
           
-          // Небольшая задержка для плавности
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Задержка для плавности и лучшего UX (показываем Loading минимум 2.5 секунды)
+          await new Promise(resolve => setTimeout(resolve, 2500));
           
-          // Переходим на главный экран
+          // Переходим на главный экран и больше не возвращаемся на PIN
           setIsLoadingAfterPin(false);
+          initialAuthCheckedRef.current = true; // Помечаем, что авторизация полностью завершена
           handleNavigate('main');
         } catch (err) {
           console.error('Ошибка загрузки MainView:', err);
@@ -363,6 +403,7 @@ export default function App() {
           // В случае ошибки все равно переходим на главный экран
           // Но если авторизация невалидна — не пускаем дальше
           if (isAuthed) {
+            initialAuthCheckedRef.current = true;
             handleNavigate('main');
           } else {
             handleNavigate('login');
@@ -392,7 +433,7 @@ export default function App() {
           <StatusBar style="light" translucent={true} backgroundColor="transparent" />
         {currentScreen === 'loading' && (
           <View key="loading" style={styles.animatedContainer}>
-            <LoadingView onContinue={isCheckingAuth ? undefined : () => handleNavigate('login')} />
+            <LoadingView />
           </View>
         )}
         {currentScreen === 'login' && (
@@ -425,12 +466,13 @@ export default function App() {
               <MainViewComponent
                 onLogout={() => {
                   void (async () => {
-                    // Важно: при выходе чистим токены, иначе приложение будет снова вести на PIN.
+                    // Важно: при выходе чистим токены и сбрасываем флаги
                     await apiService.clearAuth();
                     await AsyncStorage.removeItem(AUTH_COMPLETED_KEY);
                     setIsAuthed(false);
                     setMainViewComponent(null);
                     setPinCodeMode('enter');
+                    initialAuthCheckedRef.current = false; // Разрешаем повторную проверку при следующем входе
                     handleNavigate('login');
                   })();
                 }}
