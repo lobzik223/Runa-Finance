@@ -193,7 +193,7 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
         <ScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
-          contentContainerStyle={[styles.messagesContainer, { paddingBottom: 20 }]}
+          contentContainerStyle={[styles.messagesContainer, { paddingBottom: 10 }]}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={scrollToBottom}
           keyboardShouldPersistTaps="handled"
@@ -279,7 +279,7 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
         </ScrollView>
 
         {/* Input Area */}
-        <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 10 }]}>
+        <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 5 : 10) }]}>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
