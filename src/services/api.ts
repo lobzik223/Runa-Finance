@@ -968,29 +968,37 @@ class ApiService {
     });
   }
 
-  // Проверка подключения к API с retry логикой
-  async healthCheck(retries: number = 3, delay: number = 1000): Promise<{ status: string; message: string }> {
+  // Проверка подключения к API с retry логикой.
+  // Ответ: status, message, maintenance (true = режим «Ведутся работы» на сервере).
+  async healthCheck(
+    retries: number = 3,
+    delay: number = 1000,
+  ): Promise<{ status: string; message?: string; maintenance?: boolean }> {
+    const url = `${this.baseURL}/health`;
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        const result = await this.rawRequest<{ status: string; message: string }>(
+        const result = await this.rawRequest<{ status: string; message?: string; maintenance?: boolean }>(
           '/health',
           { method: 'GET' },
           null,
           { silent: true },
         );
+        if (__DEV__) {
+          console.log('[RUNA Health] OK', url, 'maintenance:', result.maintenance);
+        }
         return result;
       } catch (error: any) {
+        if (__DEV__) {
+          console.warn('[RUNA Health] attempt', attempt, url, error?.message || error);
+        }
         const isLastAttempt = attempt === retries;
-        const isNetworkError = 
+        const isNetworkError =
           String(error?.message || '').toLowerCase().includes('сеть') ||
           String(error?.message || '').toLowerCase().includes('network') ||
           String(error?.message || '').toLowerCase().includes('failed to fetch');
-        
         if (isLastAttempt || !isNetworkError) {
           throw error;
         }
-        
-        // Ждем перед следующей попыткой
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }

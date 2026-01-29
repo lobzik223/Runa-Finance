@@ -78,34 +78,43 @@ export default function App() {
     });
   }, []);
 
-  // Проверка соединения с бэкендом
+  // Проверка соединения с бэкендом.
+  // Экран «Ведутся работы» показывается только если: (1) бэкенд не отвечает, или (2) бэкенд вернул maintenance: true.
   const checkBackendConnection = useCallback(async (showMaintenance: boolean = true) => {
     try {
-      await apiService.healthCheck(3, 1000);
-      // Соединение восстановлено
+      const res = await apiService.healthCheck(3, 1000);
+      // Явно считаем maintenance только true; отсутствие поля или старый бэкенд — не maintenance
+      const maintenanceMode = res.maintenance === true;
+      if (maintenanceMode) {
+        if (__DEV__) console.log('[RUNA Maintenance] Показ экрана: сервер вернул maintenance: true');
+        if (!isMaintenance && showMaintenance) {
+          const current = currentScreen;
+          if (current !== 'maintenance' && current !== 'loading' && current !== 'pincode') {
+            setSavedScreen(current);
+            void AsyncStorage.setItem(LAST_SCREEN_KEY, current);
+          }
+          setIsMaintenance(true);
+          setCurrentScreen('maintenance');
+        }
+        return false;
+      }
       if (isMaintenance) {
+        if (__DEV__) console.log('[RUNA Maintenance] Скрытие экрана: сервер доступен, maintenance: false');
         setIsMaintenance(false);
-        // Восстанавливаем сохраненный экран
         if (savedScreen && savedScreen !== 'maintenance' && savedScreen !== 'loading') {
           handleNavigate(savedScreen);
         } else if (isAuthed) {
-          // Если был авторизован, возвращаем на main (только если не на main уже)
-          if (currentScreen !== 'main') {
-            handleNavigate('main');
-          }
+          if (currentScreen !== 'main') handleNavigate('main');
         } else {
           handleNavigate('login');
         }
         setSavedScreen(null);
-        // Очищаем сохраненный экран из AsyncStorage
         void AsyncStorage.removeItem(LAST_SCREEN_KEY);
       }
       return true;
     } catch (error) {
-      // Бэкенд недоступен
+      if (__DEV__) console.warn('[RUNA Maintenance] Показ экрана: health запрос упал', error);
       if (showMaintenance && !isMaintenance) {
-        // Сохраняем текущий экран перед показом maintenance
-        // НО: не сохраняем loading, чтобы не возвращаться на него
         const current = currentScreen;
         if (current !== 'maintenance' && current !== 'loading' && current !== 'pincode') {
           setSavedScreen(current);
