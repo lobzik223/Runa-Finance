@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -76,6 +76,7 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
   const [dividendAssets, setDividendAssets] = useState<AssetWidget[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [viewingAsset, setViewingAsset] = useState<AssetSearchResult | null>(null);
+  const hasLoadedAssetsOnce = useRef(false);
 
   useEffect(() => {
     onShowAssetView?.(!!viewingAsset);
@@ -185,7 +186,8 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
   }, []);
 
   const reloadAssets = useCallback(async () => {
-    setLoadingAssets(true);
+    const isFirstLoad = !hasLoadedAssetsOnce.current;
+    if (isFirstLoad) setLoadingAssets(true);
     try {
       const [popular, falling, rising, dividend] = await Promise.all([
         apiService.getPopularAssets('popular').catch(() => []),
@@ -197,6 +199,7 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
       setFallingAssets(falling);
       setRisingAssets(rising);
       setDividendAssets(dividend);
+      hasLoadedAssetsOnce.current = true;
     } catch (error) {
       console.error('Ошибка загрузки активов:', error);
     } finally {
