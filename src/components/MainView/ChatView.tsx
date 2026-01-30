@@ -38,6 +38,7 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState('Пользователь');
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -58,9 +59,22 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
   }, [messages]);
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', scrollToBottom);
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setIsKeyboardVisible(true);
+        scrollToBottom();
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setIsKeyboardVisible(false);
+      }
+    );
     return () => {
-      showSubscription.remove();
+      showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
@@ -187,7 +201,7 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
@@ -279,7 +293,14 @@ const ChatView: React.FC<ChatViewProps> = ({ onBack }) => {
         </ScrollView>
 
         {/* Input Area */}
-        <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 5 : 10) }]}>
+        <View style={[
+          styles.inputWrapper, 
+          { 
+            paddingBottom: isKeyboardVisible 
+              ? 10 
+              : (insets.bottom + (Platform.OS === 'ios' ? 0 : 10)) 
+          }
+        ]}>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -342,6 +363,7 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+    justifyContent: 'flex-end',
   },
   scrollView: {
     flex: 1,
@@ -443,8 +465,8 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
-    lineHeight: 20,
-    fontWeight: '600',
+    lineHeight: 22,
+    fontWeight: '500',
   },
   messageTextLeft: {
     color: '#FFFFFF',

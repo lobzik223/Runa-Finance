@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,67 +12,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Circle, G } from 'react-native-svg';
 import { apiService, type TransactionsAnalyticsResponse } from '../../services/api';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const DONUT_TRACK_COLOR = '#A8C5E0';
-const DONUT_PROGRESS_COLOR = '#F4A460';
-
-interface AnalyticsViewProps {
-  onBack: () => void;
-}
-
-type DonutChartProps = {
-  size: number;
-  strokeWidth: number;
-  /** 0..1 */
-  fraction: number;
-  trackColor: string;
-  progressColor: string;
-};
-
-const DonutChart: React.FC<DonutChartProps> = ({
-  size,
-  strokeWidth,
-  fraction,
-  trackColor,
-  progressColor,
-}) => {
-  const clamped = Math.max(0, Math.min(1, fraction));
-  const radius = (size - strokeWidth) / 2;
-  const cx = size / 2;
-  const cy = size / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progressLen = circumference * clamped;
-
-  return (
-    <Svg width={size} height={size}>
-      {/* start at 12 o'clock */}
-      <G rotation={-90} origin={`${cx}, ${cy}`}>
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={radius}
-          stroke={trackColor}
-          strokeWidth={strokeWidth}
-          fill="transparent"
-        />
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={radius}
-          stroke={progressColor}
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          strokeLinecap="butt"
-          strokeDasharray={`${progressLen} ${Math.max(0, circumference - progressLen)}`}
-          strokeDashoffset={0}
-        />
-      </G>
-    </Svg>
-  );
-};
-
-const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
+const AnalyticsView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
   const [analytics, setAnalytics] = useState<TransactionsAnalyticsResponse | null>(null);
@@ -80,9 +22,7 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
 
   const timezoneName = useMemo(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tz = (Intl as any)?.DateTimeFormat?.().resolvedOptions?.().timeZone;
-      return tz || 'UTC';
+      return (Intl as any)?.DateTimeFormat?.().resolvedOptions?.().timeZone || 'UTC';
     } catch {
       return 'UTC';
     }
@@ -108,22 +48,93 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
         if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [timezoneName]);
+
+  const breakdown = useMemo(() => 
+    activeTab === 'expense' ? analytics?.breakdown.expense || [] : analytics?.breakdown.income || [],
+    [analytics, activeTab]
+  );
+
+  const renderChart = () => {
+    if (loading) {
+      return (
+        <View style={styles.chartPlaceholder}>
+          <ActivityIndicator color="#FFFFFF" size="large" />
+          <Text style={[styles.chartPlaceholderText, { color: '#FFFFFF' }]}>Загрузка данных...</Text>
+        </View>
+      );
+    }
+    
+    if (breakdown.length === 0) {
+      return (
+        <View style={styles.chartPlaceholder}>
+          <Text style={[styles.chartPlaceholderText, { color: '#FFFFFF' }]}>Нет данных для анализа</Text>
+        </View>
+      );
+    }
+
+    const totalAmount = breakdown.reduce((acc, item) => acc + item.amount, 0);
+    const size = 160;
+    const strokeWidth = 20;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    
+    const colors = [
+      '#F4A460', '#A8C5E0', '#4CAF50', '#E53935', 
+      '#9C27B0', '#FF9800', '#009688', '#795548',
+      '#607D8B', '#FFEB3B'
+    ];
+
+    let currentOffset = 0;
+
+    return (
+      <View style={styles.chartContainer}>
+        <Svg width={size} height={size}>
+          <G rotation={-90} originX={size / 2} originY={size / 2}>
+            {breakdown.map((item, index) => {
+              const percentage = totalAmount > 0 ? item.amount / totalAmount : 0;
+              const strokeDasharray = `${percentage * circumference} ${circumference}`;
+              const strokeDashoffset = -currentOffset * circumference;
+              currentOffset += percentage;
+
+              return (
+                <Circle
+                  key={item.categoryId}
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  stroke={colors[index % colors.length]}
+                  strokeWidth={strokeWidth}
+                  fill="transparent"
+                  strokeDasharray={strokeDasharray}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="butt"
+                />
+              );
+            })}
+          </G>
+        </Svg>
+        <View style={styles.chartCenterText}>
+          <Text style={styles.chartCenterAmount}>
+            {Math.round(totalAmount).toLocaleString('ru-RU')}₽
+          </Text>
+          <Text style={styles.chartCenterLabel}>
+            {activeTab === 'expense' ? 'Расходы' : 'Доходы'}
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
   const expensePercent = analytics?.donutChart.expensePercent || 0;
   const incomePercent = analytics?.donutChart.incomePercent || 0;
-
-  const breakdown = activeTab === 'expense' ? analytics?.breakdown.expense || [] : analytics?.breakdown.income || [];
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.wrapper}>
         <View style={styles.backgroundOverlay} />
         
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Text style={styles.backArrow}>←</Text>
@@ -136,32 +147,26 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Summary Card with Chart */}
           <View style={styles.summaryCard}>
-            <View style={styles.chartContainer}>
-              <View style={styles.donutWrap}>
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <DonutChart
-                    size={120}
-                    strokeWidth={22}
-                    fraction={incomePercent / 100}
-                    trackColor={DONUT_TRACK_COLOR}
-                    progressColor={DONUT_PROGRESS_COLOR}
-                  />
-                )}
-              </View>
-            </View>
+            {renderChart()}
             <View style={styles.summaryTextContainer}>
-              <Text style={[styles.summaryLabel, styles.expenseLabel]}>Расходы</Text>
-              <Text style={[styles.summaryPercent, styles.expensePercent]}>{expensePercent}%</Text>
-              <Text style={styles.summaryLabel}>Доходы</Text>
-              <Text style={styles.summaryPercent}>{incomePercent}%</Text>
+              {breakdown.slice(0, 4).map((item, index) => (
+                <View key={item.categoryId} style={styles.legendItem}>
+                  <View style={[styles.legendColor, { 
+                    backgroundColor: [
+                      '#F4A460', '#A8C5E0', '#4CAF50', '#E53935', 
+                      '#9C27B0', '#FF9800', '#009688', '#795548'
+                    ][index % 8] 
+                  }]} />
+                  <Text style={styles.legendText} numberOfLines={1}>
+                    {item.categoryName}
+                  </Text>
+                  <Text style={styles.legendPercent}>{Math.round(item.percent)}%</Text>
+                </View>
+              ))}
             </View>
           </View>
 
-          {/* Tab Switcher */}
           <View style={styles.tabsContainer}>
             <TouchableOpacity 
               style={[styles.tab, activeTab === 'expense' && styles.tabActive]}
@@ -177,21 +182,13 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Current Selection Percent */}
-          <View style={styles.selectionPercentBadge}>
-            <Text style={styles.selectionPercentText}>
-              {activeTab === 'expense' ? `${expensePercent}%` : `${incomePercent}%`}
-            </Text>
-          </View>
-
-          {/* Categories Progress List */}
           {!loading && breakdown.length === 0 ? (
             <View style={styles.categoryCard}>
               <Text style={styles.categoryTitle}>Нет данных</Text>
               <Text style={styles.amountText}>0₽</Text>
             </View>
           ) : (
-            breakdown.slice(0, 10).map((row) => (
+            breakdown.map((row) => (
               <View key={`${activeTab}-${row.categoryId}`} style={styles.categoryCard}>
                 <View style={styles.categoryHeader}>
                   <Text style={[styles.categoryTitle, { color: '#1D4981' }]}>{row.categoryName}</Text>
@@ -204,7 +201,6 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onBack }) => {
               </View>
             ))
           )}
-
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -272,46 +268,51 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   chartContainer: {
-    width: 140,
-    height: 140,
+    width: 160,
+    height: 160,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
-  donutWrap: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  chartCenterText: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1D4981',
   },
-  donutTrack: {
-    stroke: DONUT_TRACK_COLOR,
-  },
-  donutProgress: {
-    stroke: DONUT_PROGRESS_COLOR,
-  },
-  summaryTextContainer: {
-    marginLeft: 24,
-    flex: 1,
-  },
-  summaryLabel: {
-    fontSize: 24,
+  chartCenterAmount: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  summaryPercent: {
-    fontSize: 20,
-    fontWeight: '400',
+  chartCenterLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  legendColor: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  legendText: {
+    flex: 1,
+    fontSize: 14,
     color: '#FFFFFF',
-    marginBottom: 12,
-    opacity: 0.8,
   },
-  expenseLabel: {
-    color: '#D4A373',
+  legendPercent: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginLeft: 8,
   },
-  expensePercent: {
-    color: '#D4A373',
+  summaryTextContainer: {
+    marginLeft: 20,
+    flex: 1,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -336,21 +337,6 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#FFFFFF',
-  },
-  selectionPercentBadge: {
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 24,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#1D4981',
-    marginBottom: 20,
-  },
-  selectionPercentText: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    opacity: 0.8,
   },
   categoryCard: {
     backgroundColor: '#E8E0D4',
@@ -393,6 +379,16 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'right',
     marginTop: 2,
+  },
+  chartPlaceholder: {
+    flex: 1,
+    height: 160,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chartPlaceholderText: {
+    marginTop: 8,
+    fontSize: 14,
   },
 });
 

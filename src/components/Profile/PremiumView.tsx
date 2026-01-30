@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,23 @@ import {
   ScrollView,
   Dimensions,
   Image,
+  Linking,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import apiService, { type User } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+function formatActiveUntil(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}.${month}.${year}`;
+}
 
 interface PremiumViewProps {
   onBack: () => void;
@@ -19,6 +32,56 @@ interface PremiumViewProps {
 const PremiumView: React.FC<PremiumViewProps> = ({ onBack }) => {
   const insets = useSafeAreaInsets();
   const [selectedPlan, setSelectedPlan] = useState<'1month' | '6months' | '1year'>('1month');
+  const [siteUrl, setSiteUrl] = useState<string>('https://runafinance.online/premium');
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const config = await apiService.getPaymentConfig();
+        if (config.subscriptionSiteUrl) {
+          setSiteUrl(config.subscriptionSiteUrl);
+        }
+      } catch (error) {
+        console.warn('[PremiumView] Failed to fetch payment config:', error);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const { user: me } = await apiService.getMe();
+        setUser(me);
+        await apiService.saveUser(me);
+      } catch (error) {
+        console.warn('[PremiumView] Failed to fetch user:', error);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  const premiumUntil = user?.premiumUntil ?? user?.subscription?.currentPeriodEnd ?? null;
+  const isActive = premiumUntil && new Date(premiumUntil) > new Date();
+  const activeUntilFormatted = formatActiveUntil(premiumUntil);
+  const isFromStore = user?.subscription?.store === 'APPLE' || user?.subscription?.store === 'GOOGLE';
+
+  const handleGoToSite = async () => {
+    try {
+      await Linking.openURL(siteUrl);
+    } catch (error) {
+      console.error('Failed to open URL:', error);
+    }
+  };
+
+  const handleOpenSubscriptionManagement = () => {
+    if (Platform.OS === 'ios') {
+      Linking.openURL('https://apps.apple.com/account/subscriptions').catch(() => {});
+    } else {
+      Linking.openURL('https://play.google.com/store/account/subscriptions').catch(() => {});
+    }
+  };
 
   const features = [
     {
@@ -68,6 +131,21 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onBack }) => {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 150 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Активная подписка: срок и действия */}
+        {isActive && activeUntilFormatted && (
+          <View style={styles.activeSubscriptionBlock}>
+            <Text style={styles.activeUntilLabel}>Подписка активна до {activeUntilFormatted}</Text>
+            {!isFromStore && (
+              <TouchableOpacity
+                style={styles.cancelSupportButton}
+                onPress={() => Linking.openURL('mailto:support@runafinance.online')}
+              >
+                <Text style={styles.cancelSupportButtonText}>Отменить подписку? Обратиться в поддержку</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Features List */}
         {features.map((feature, index) => (
           <View key={index} style={styles.featureCard}>
@@ -113,9 +191,39 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onBack }) => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.subscribeButton}>
+        <TouchableOpacity style={styles.subscribeButton} onPress={handleGoToSite}>
           <Text style={styles.subscribeButtonText}>Оформить подписку</Text>
         </TouchableOpacity>
+
+        {isActive && isFromStore && (
+          <TouchableOpacity style={styles.manageSubscriptionButton} onPress={handleOpenSubscriptionManagement}>
+            <Text style={styles.manageSubscriptionButtonText}>Управление подпиской</Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={styles.dividerContainer}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>ИЛИ</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity 
+          style={styles.siteButton}
+          onPress={handleGoToSite}
+        >
+          <Text style={styles.siteButtonTitle}>Перейти на сайт</Text>
+          <Text style={styles.siteButtonSubtitle}>Для оплаты и проверки условий и цен</Text>
+        </TouchableOpacity>
+
+        {isActive && isFromStore && (
+          <Text style={styles.storeCancelHint}>
+            Отмена подписки: Настройки устройства → Подписки
+          </Text>
+        )}
+
+        <Text style={styles.disclaimerText}>
+          Для покупки требуется обработка данных
+        </Text>
       </ScrollView>
     </View>
   );
@@ -171,6 +279,32 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
+  },
+  activeSubscriptionBlock: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  activeUntilLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2E7D32',
+    marginBottom: 8,
+  },
+  cancelSupportButton: {
+    backgroundColor: '#1D4981',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignSelf: 'flex-start',
+  },
+  cancelSupportButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   featureCard: {
     backgroundColor: '#FDEBD0',
@@ -280,6 +414,70 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  manageSubscriptionButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#1D4981',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  manageSubscriptionButtonText: {
+    color: '#1D4981',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  dividerText: {
+    color: '#FFFFFF',
+    paddingHorizontal: 10,
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.8,
+  },
+  siteButton: {
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  siteButtonTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  siteButtonSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    opacity: 0.9,
+  },
+  storeCancelHint: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  disclaimerText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 12,
+    opacity: 0.7,
+    textDecorationLine: 'underline',
   },
 });
 

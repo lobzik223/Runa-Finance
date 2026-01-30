@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,13 +16,14 @@ import {
   Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { apiService, type AssetSearchResult } from '../../services/api';
+import Svg, { Path, Circle, SvgUri } from 'react-native-svg';
+import { apiService, resolveAssetLogoUrl, type AssetSearchResult } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AssetViewScreenProps {
   onBack?: () => void;
-  asset: AssetSearchResult | { ticker: string; name: string; price?: number; logo?: string };
+  asset: AssetSearchResult | { ticker: string; name: string; price?: number; totalCost?: number; logo?: string };
   onBuy?: (ticker: string, quantity: number, price: number) => Promise<void>;
   onDelete?: () => Promise<void>;
 }
@@ -73,11 +74,14 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
       try {
         const quote = await apiService.getAssetQuote(resolvedTicker);
         setCurrentPrice(quote.price);
-        setBuyPrice(quote.price);
+        // Если цена покупки еще не установлена (первый вход), ставим текущую
+        if (buyPrice === null) setBuyPrice(quote.price);
       } catch (quoteError: any) {
-        console.warn('Не удалось получить котировку:', quoteError);
-        // Используем цену из пропсов если есть
-        if ((asset as any).price) {
+        const msg = String(quoteError?.message || '');
+        if (!msg.includes('Price not available') && !msg.includes('not available')) {
+          console.warn('Не удалось получить котировку:', quoteError);
+        }
+        if ((asset as any).price && buyPrice === null) {
           setCurrentPrice((asset as any).price);
           setBuyPrice((asset as any).price);
         }
@@ -116,13 +120,14 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
         if (candleData && candleData.length > 0) {
           setCandles(candleData.map((c) => ({ time: c.time, close: c.close })));
           
-          // Рассчитываем изменение цены
           const firstPrice = candleData[0].close;
           const lastPrice = candleData[candleData.length - 1].close;
           const change = lastPrice - firstPrice;
           const changePercent = firstPrice > 0 ? (change / firstPrice) * 100 : 0;
           setPriceChange(change);
           setPriceChangePercent(changePercent);
+        } else {
+          setCandles([]);
         }
       } catch (candleError: any) {
         console.warn('Не удалось загрузить исторические данные:', candleError);
@@ -133,7 +138,7 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
     } finally {
       setLoading(false);
     }
-  }, [resolvedTicker, selectedTimeframe]);
+  }, [resolvedTicker, selectedTimeframe]); // Убрали buyPrice из зависимостей, чтобы не зацикливать
 
   useEffect(() => {
     void loadAssetData();
@@ -145,7 +150,7 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
       return;
     }
 
-    const quantity = parseFloat(buyQuantity);
+    const quantity = parseNum(buyQuantity);
     if (isNaN(quantity) || quantity <= 0) {
       Alert.alert('Ошибка', 'Введите корректное количество');
       return;
@@ -176,6 +181,25 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
     );
   };
 
+  const parseNum = (val: string) => parseFloat(val.replace(',', '.'));
+
+  const points = useMemo(() => {
+    const values = candles.map((c) => c.close);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const chartHeight = 200;
+    const chartWidth = SCREEN_WIDTH - 80;
+    const padding = 10; // Отступ сверху и снизу, чтобы линия не обрезалась
+    const usableHeight = chartHeight - padding * 2;
+
+    return candles.map((candle, index) => {
+      const x = (index / (candles.length - 1 || 1)) * chartWidth;
+      const y = padding + (usableHeight - ((candle.close - min) / range) * usableHeight);
+      return { x, y, value: candle.close };
+    });
+  }, [candles]);
+
   const renderChart = () => {
     if (loading) {
       return (
@@ -197,75 +221,62 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
       );
     }
 
-    const values = candles.map((c) => c.close);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
     const chartHeight = 200;
     const chartWidth = SCREEN_WIDTH - 80;
 
-    const points = candles.map((candle, index) => {
-      const x = (index / (candles.length - 1 || 1)) * chartWidth;
-      const y = chartHeight - ((candle.close - min) / range) * chartHeight;
-      return { x, y, value: candle.close };
-    });
+    // Генерируем путь для SVG линии
+    const d = points.reduce((acc, point, index) => {
+      return acc + (index === 0 ? `M ${point.x} ${point.y}` : ` L ${point.x} ${point.y}`);
+    }, '');
+
+    // Путь для области под графиком (градиент)
+    const areaD = `${d} L ${chartWidth} ${chartHeight} L 0 ${chartHeight} Z`;
 
     return (
       <View style={styles.chartContainer}>
         <View style={styles.chart}>
-          {/* Grid lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
-            <View
-              key={ratio}
-              style={[
-                styles.gridLine,
-                {
-                  bottom: ratio * chartHeight,
-                },
-              ]}
-            />
-          ))}
-          
-          {/* Chart line */}
-          {points.map((point, index) => {
-            if (index === 0) return null;
-            const prevPoint = points[index - 1];
-            const length = Math.sqrt(
-              Math.pow(point.x - prevPoint.x, 2) + Math.pow(point.y - prevPoint.y, 2),
-            );
-            const angle = Math.atan2(point.y - prevPoint.y, point.x - prevPoint.x) * (180 / Math.PI);
-            
-            return (
-              <View
-                key={`line-${index}`}
-                style={[
-                  styles.chartLine,
-                  {
-                    left: prevPoint.x,
-                    bottom: prevPoint.y,
-                    width: length,
-                    transform: [{ rotate: `${angle}deg` }],
-                    backgroundColor: priceChange >= 0 ? '#4CAF50' : '#E53935',
-                  },
-                ]}
+          <Svg width={chartWidth} height={chartHeight}>
+            {/* Сетка */}
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
+              <Path
+                key={ratio}
+                d={`M 0 ${ratio * chartHeight} L ${chartWidth} ${ratio * chartHeight}`}
+                stroke="#E0E0E0"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+                opacity="0.3"
               />
-            );
-          })}
-          
-          {/* Chart points */}
-          {points.map((point, index) => (
-            <View
-              key={`point-${index}`}
-              style={[
-                styles.chartPoint,
-                {
-                  left: point.x - 3,
-                  bottom: point.y - 3,
-                  backgroundColor: priceChange >= 0 ? '#4CAF50' : '#E53935',
-                },
-              ]}
+            ))}
+            
+            {/* Область под графиком */}
+            <Path
+              d={areaD}
+              fill={priceChange >= 0 ? 'rgba(76, 175, 80, 0.1)' : 'rgba(229, 57, 53, 0.1)'}
             />
-          ))}
+
+            {/* Линия графика */}
+            <Path
+              d={d}
+              fill="none"
+              stroke={priceChange >= 0 ? '#4CAF50' : '#E53935'}
+              strokeWidth="3"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+
+            {/* Точки на графике (только важные или все, если их мало) */}
+            {points.length < 50 && points.map((point, index) => (
+              <Circle
+                key={index}
+                cx={point.x}
+                cy={point.y}
+                r="3"
+                fill={priceChange >= 0 ? '#4CAF50' : '#E53935'}
+                stroke="#FFFFFF"
+                strokeWidth="1"
+              />
+            ))}
+          </Svg>
         </View>
         <View style={styles.chartLabels}>
           {candles.length > 0 && (
@@ -307,18 +318,31 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
       >
         {/* Asset Info */}
         <View style={styles.assetInfoCard}>
-          <View style={styles.assetLogoContainer}>
-            <Image
-              source={{
-                uri: `https://invest-brands.cdn-tinkoff.ru/${resolvedTicker.toLowerCase()}x160.png`,
-              }}
-              style={styles.assetLogo}
-              onError={() => {
-                // Fallback handled by background color
-              }}
-              resizeMode="contain"
-            />
-          </View>
+        <View style={styles.assetLogoContainer}>
+          {(() => {
+            const logoUrl = resolveAssetLogoUrl((asset as any).logo, resolvedTicker);
+            if (logoUrl.endsWith('.svg')) {
+              return (
+                <SvgUri
+                  uri={logoUrl}
+                  width={80}
+                  height={80}
+                  style={styles.assetLogo}
+                  onError={() => {
+                    (asset as any).logo = `https://invest-brands.cdn-tinkoff.ru/${(resolvedTicker || '').toLowerCase()}x160.png`;
+                  }}
+                />
+              );
+            }
+            return (
+              <Image
+                source={{ uri: logoUrl }}
+                style={styles.assetLogo}
+                resizeMode="contain"
+              />
+            );
+          })()}
+        </View>
           <Text style={styles.assetName} numberOfLines={2}>
             {resolvedName}
           </Text>
@@ -370,33 +394,51 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          {onDelete && (
-            <TouchableOpacity
-              style={[styles.deleteButton, { flex: 1, marginRight: 12 }]}
-              onPress={async () => {
-                Alert.alert(
-                  'Удалить актив?',
-                  `Удалить "${resolvedName}" из портфеля? Это действие нельзя отменить.`,
-                  [
-                    { text: 'Отмена', style: 'cancel' },
-                    {
-                      text: 'Удалить',
-                      style: 'destructive',
-                      onPress: async () => {
-                        try {
-                          await onDelete();
-                        } catch (error: any) {
-                          Alert.alert('Ошибка', error?.message || 'Не удалось удалить актив');
-                        }
+          {onDelete && (() => {
+            const totalInvested = (asset as any).totalCost ?? 0;
+            const currentVal = currentPrice ?? (asset as any).price ?? 0;
+            const pnl = typeof currentVal === 'number' && typeof totalInvested === 'number' && totalInvested > 0
+              ? currentVal - totalInvested
+              : null;
+            const pnlText = pnl !== null
+              ? (pnl >= 0 ? `Прибыль: +${pnl.toFixed(2)} ₽` : `Убыток: ${pnl.toFixed(2)} ₽`)
+              : '';
+            const message = [
+              `Вложено: ${totalInvested.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`,
+              `Текущая стоимость: ${currentVal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`,
+              pnlText ? `При продаже: ${pnlText}` : '',
+            ].filter(Boolean).join('\n');
+            return (
+              <TouchableOpacity
+                style={[styles.sellButton, { flex: 1, marginRight: 12 }]}
+                onPress={() => {
+                  Alert.alert(
+                    'Продать актив?',
+                    `Закрыть позицию по "${resolvedName}"?\n\n${message}`,
+                    [
+                      { text: 'Отмена', style: 'cancel' },
+                      {
+                        text: 'Продать',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await onDelete();
+                            Alert.alert('Готово', pnl !== null
+                              ? (pnl >= 0 ? `Позиция закрыта. Прибыль: +${pnl.toFixed(2)} ₽` : `Позиция закрыта. Убыток: ${pnl.toFixed(2)} ₽`)
+                              : 'Позиция закрыта.');
+                          } catch (error: any) {
+                            Alert.alert('Ошибка', error?.message || 'Не удалось продать актив');
+                          }
+                        },
                       },
-                    },
-                  ],
-                );
-              }}
-            >
-              <Text style={styles.deleteButtonText}>Удалить</Text>
-            </TouchableOpacity>
-          )}
+                    ],
+                  );
+                }}
+              >
+                <Text style={styles.sellButtonText}>Продать</Text>
+              </TouchableOpacity>
+            );
+          })()}
           <TouchableOpacity
             style={[styles.buyButton, { flex: 1 }]}
             onPress={() => setShowBuyModal(true)}
@@ -419,61 +461,54 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
           onPress={() => setShowBuyModal(false)}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.modalKeyboardView}
-            keyboardVerticalOffset={
-              Platform.OS === 'ios' 
-                ? (hasQuantity && keyboardVisible ? 100 : hasQuantity ? 50 : -10)
-                : (hasQuantity && keyboardVisible ? 60 : hasQuantity ? 30 : 0)
-            }
+            keyboardVerticalOffset={0}
           >
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
               <View style={[
                 styles.modalContent, 
                 { 
-                  paddingBottom: Platform.OS === 'ios' 
-                    ? (hasQuantity && keyboardVisible ? Math.max(insets.bottom + 20, 30) : hasQuantity ? Math.max(insets.bottom + 15, 25) : Math.max(insets.bottom + 8, 18))
-                    : (hasQuantity && keyboardVisible ? Math.max(insets.bottom + 20, 30) : hasQuantity ? Math.max(insets.bottom + 15, 25) : Math.max(insets.bottom + 10, 20)),
-                  maxHeight: hasQuantity && keyboardVisible
-                    ? (Platform.OS === 'ios' ? SCREEN_HEIGHT * 0.6 : SCREEN_HEIGHT * 0.65)
-                    : hasQuantity
-                    ? (Platform.OS === 'ios' ? SCREEN_HEIGHT * 0.5 : SCREEN_HEIGHT * 0.55)
-                    : (Platform.OS === 'ios' ? SCREEN_HEIGHT * 0.4 : SCREEN_HEIGHT * 0.45),
+                  paddingBottom: Math.max(insets.bottom, 20),
+                  maxHeight: SCREEN_HEIGHT * 0.9,
                 }
               ]}>
+                <View style={styles.modalHeaderIndicator} />
                 <Text style={styles.modalTitle}>Покупка {resolvedTicker}</Text>
                 <Text style={styles.modalSubtitle}>{resolvedName}</Text>
 
-                {buyPrice && (
-                  <View style={styles.priceInfo}>
-                    <Text style={styles.priceInfoLabel}>Цена за 1 акцию</Text>
-                    <Text style={styles.priceInfoValue}>{buyPrice.toFixed(2)} ₽</Text>
-                  </View>
-                )}
+                <ScrollView bounces={false} showsVerticalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                  {buyPrice && (
+                    <View style={styles.priceInfo}>
+                      <Text style={styles.priceInfoLabel}>Цена за 1 акцию</Text>
+                      <Text style={styles.priceInfoValue}>{buyPrice.toFixed(2)} ₽</Text>
+                    </View>
+                  )}
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Количество акций</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={buyQuantity}
-                    onChangeText={setBuyQuantity}
-                    placeholder="Введите количество"
-                    keyboardType="numeric"
-                    placeholderTextColor="#999"
-                  />
-                </View>
-
-                {buyPrice && buyQuantity && !isNaN(parseFloat(buyQuantity)) && parseFloat(buyQuantity) > 0 && (
-                  <View style={styles.totalInfo}>
-                    <Text style={styles.totalLabel}>Итого к оплате</Text>
-                    <Text style={styles.totalValue}>
-                      {(parseFloat(buyQuantity) * buyPrice).toFixed(2)} ₽
-                    </Text>
-                    <Text style={styles.totalDetails}>
-                      {buyQuantity} шт. × {buyPrice.toFixed(2)} ₽
-                    </Text>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Количество акций</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={buyQuantity}
+                      onChangeText={setBuyQuantity}
+                      placeholder="Введите количество"
+                      keyboardType="numeric"
+                      placeholderTextColor="#999"
+                    />
                   </View>
-                )}
+
+                  {buyPrice && buyQuantity && !isNaN(parseFloat(buyQuantity)) && parseFloat(buyQuantity) > 0 && (
+                    <View style={styles.totalInfo}>
+                      <Text style={styles.totalLabel}>Итого к оплате</Text>
+                      <Text style={styles.totalValue}>
+                        {(parseFloat(buyQuantity) * buyPrice).toFixed(2)} ₽
+                      </Text>
+                      <Text style={styles.totalDetails}>
+                        {buyQuantity} шт. × {buyPrice.toFixed(2)} ₽
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
 
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
@@ -489,9 +524,6 @@ const AssetViewScreen: React.FC<AssetViewScreenProps> = ({ onBack, asset, onBuy,
                     <Text style={styles.modalButtonBuyText}>Купить</Text>
                   </TouchableOpacity>
                 </View>
-                {(hasQuantity && keyboardVisible) && (
-                  <View style={styles.modalBottomSpacer} />
-                )}
               </View>
             </TouchableOpacity>
           </KeyboardAvoidingView>
@@ -765,6 +797,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  sellButton: {
+    backgroundColor: '#E53935',
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  sellButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   deleteButton: {
     backgroundColor: '#E53935',
     borderRadius: 16,
@@ -793,9 +841,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: Math.max(20, SCREEN_WIDTH * 0.05),
-    maxHeight: Platform.OS === 'ios' ? SCREEN_HEIGHT * 0.4 : SCREEN_HEIGHT * 0.45,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     width: '100%',
+  },
+  modalHeaderIndicator: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: Math.min(24, SCREEN_WIDTH * 0.06),

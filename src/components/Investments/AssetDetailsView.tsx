@@ -51,51 +51,33 @@ const AssetDetailsView: React.FC<AssetDetailsViewProps> = ({ onBack, assetId, as
   };
 
   const loadCurrentPrice = async (symbol: string) => {
+    if (priceLoading) return; // Предотвращаем множественные запросы
     setPriceLoading(true);
     try {
       const quote = await apiService.getAssetQuote(symbol);
-      setCurrentPrice(quote.price);
+      
+      // Обновляем только если цена реально изменилась
+      setCurrentPrice(prev => {
+        if (prev === quote.price) return prev;
+        return quote.price;
+      });
     } catch (error: any) {
       console.error('Failed to load price:', error);
-      setCurrentPrice(null);
     } finally {
       setPriceLoading(false);
     }
   };
 
-  // Обновление цены каждые 10 секунд
+  // Обновление цены каждые 15 секунд (более щадящий интервал)
   useEffect(() => {
     if (assetData?.symbol) {
       const interval = setInterval(() => {
         void loadCurrentPrice(assetData.symbol);
-      }, 10000);
+      }, 15000);
 
       return () => clearInterval(interval);
     }
   }, [assetData?.symbol]);
-
-  const handleDelete = () => {
-    Alert.alert(
-      'Удалить актив?',
-      `Удалить "${assetData?.name || assetName}" из портфеля? Это действие нельзя отменить.`,
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiService.deleteInvestmentAsset(assetId);
-              Alert.alert('Готово', 'Актив удален из портфеля');
-              onBack?.(true);
-            } catch (error: any) {
-              Alert.alert('Ошибка', error?.message || 'Не удалось удалить актив');
-            }
-          },
-        },
-      ],
-    );
-  };
 
   if (loading) {
     return (
@@ -128,6 +110,42 @@ const AssetDetailsView: React.FC<AssetDetailsViewProps> = ({ onBack, assetId, as
   const pnlPercent = pnl !== null && totalCost > 0 ? (pnl / totalCost) * 100 : null;
   const priceChange = currentPrice && averagePrice > 0 ? currentPrice - averagePrice : null;
   const priceChangePercent = priceChange !== null && averagePrice > 0 ? (priceChange / averagePrice) * 100 : null;
+
+  const handleSell = () => {
+    const value = currentValue ?? totalCost;
+    const profitLoss = value - totalCost;
+    const pnlLine = profitLoss >= 0
+      ? `При продаже: прибыль +${profitLoss.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
+      : `При продаже: убыток ${profitLoss.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
+    const message = [
+      `Вложено: ${totalCost.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`,
+      `Текущая стоимость: ${value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`,
+      pnlLine,
+    ].join('\n');
+    Alert.alert(
+      'Продать актив?',
+      `Закрыть позицию по "${assetData?.name || assetName}"?\n\n${message}`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Продать',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.deleteInvestmentAsset(assetId);
+              const resultMsg = profitLoss >= 0
+                ? `Позиция закрыта. Прибыль: +${profitLoss.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`
+                : `Позиция закрыта. Убыток: ${profitLoss.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
+              Alert.alert('Готово', resultMsg);
+              onBack?.(true);
+            } catch (error: any) {
+              Alert.alert('Ошибка', error?.message || 'Не удалось продать актив');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={[styles.wrapper, { 
@@ -273,8 +291,8 @@ const AssetDetailsView: React.FC<AssetDetailsViewProps> = ({ onBack, assetId, as
           >
             <Text style={styles.buyButtonText}>Докупить</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-            <Text style={styles.deleteButtonText}>Удалить</Text>
+          <TouchableOpacity style={styles.deleteButton} onPress={handleSell}>
+            <Text style={styles.deleteButtonText}>Продать</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

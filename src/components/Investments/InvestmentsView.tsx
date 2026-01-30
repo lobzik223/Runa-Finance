@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddStockView from './AddStockView';
 import AssetDetailsView from './AssetDetailsView';
 import AssetViewScreen from './AssetViewScreen';
-import { apiService, type InvestmentsPortfolioResponse, type MarketNewsItem } from '../../services/api';
+import { apiService, resolveAssetLogoUrl, type InvestmentsPortfolioResponse, type MarketNewsItem } from '../../services/api';
+import { SvgUri } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,33 +33,51 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
   const [selectedAssetName, setSelectedAssetName] = useState<string>('');
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string>('');
   const [selectedAssetPrice, setSelectedAssetPrice] = useState<number | null>(null);
+  const [selectedAssetTotalCost, setSelectedAssetTotalCost] = useState<number>(0);
+  const [selectedAssetLogo, setSelectedAssetLogo] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [portfolio, setPortfolio] = useState<InvestmentsPortfolioResponse | null>(null);
   const [news, setNews] = useState<MarketNewsItem[]>([]);
   const [failedLogos, setFailedLogos] = useState<Record<string, boolean>>({});
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const reload = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [p, n] = await Promise.all([
         apiService.getInvestmentsPortfolio(),
         apiService.getMarketNews(10),
       ]);
-      setPortfolio(p);
-      setNews(n);
+      
+      // Глубокое сравнение для предотвращения мерцания
+      setPortfolio(prev => {
+        const nextStr = JSON.stringify(p);
+        const prevStr = JSON.stringify(prev);
+        if (nextStr === prevStr) return prev;
+        return p;
+      });
+      
+      setNews(prev => {
+        const nextStr = JSON.stringify(n);
+        const prevStr = JSON.stringify(prev);
+        if (nextStr === prevStr) return prev;
+        return n;
+      });
     } catch {
-      setPortfolio({ assets: [], totalCost: 0, totalCurrentValue: null, totalPnlValue: null, totalPnlPercent: null });
-      setNews([]);
+      // Если ошибка при фоновом обновлении, не сбрасываем данные
+      if (!silent) {
+        setPortfolio({ assets: [], totalCost: 0, totalCurrentValue: null, totalPnlValue: null, totalPnlPercent: null });
+        setNews([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
-  // Обновление цен для реальных инвестиций пользователя каждые 10 секунд
+  // Обновление цен для реальных инвестиций пользователя каждые 15 секунд (тихое)
   useEffect(() => {
     const interval = setInterval(() => {
-      void reload();
-    }, 10000);
+      void reload(true);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [reload]);
@@ -82,8 +101,12 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
     return slug ? `https://invest-brands.cdn-tinkoff.ru/${slug}x160.png` : null;
   };
 
+  const lastShowAssetView = useRef(false);
   useEffect(() => {
-    onShowAssetView?.(showAssetView);
+    if (lastShowAssetView.current !== showAssetView) {
+      onShowAssetView?.(showAssetView);
+      lastShowAssetView.current = showAssetView;
+    }
   }, [showAssetView, onShowAssetView]);
 
   if (showAssetView) {
@@ -98,6 +121,8 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
           ticker: selectedAssetSymbol,
           name: selectedAssetName,
           price: selectedAssetPrice,
+          totalCost: selectedAssetTotalCost,
+          logo: selectedAssetLogo,
         }}
         onBuy={async (ticker: string, quantity: number, price: number) => {
           try {
@@ -213,12 +238,12 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
           ) : (
             <>
               {assets.map((a) => {
-                const pnl = a.pnlValue ?? 0;
-                const pnlRounded = Math.round(pnl);
-                const pct = a.totalCost > 0 && a.currentValue !== null ? (pnl / a.totalCost) * 100 : null;
+                const currentVal = a.currentValue ?? a.totalCost;
+                const pnl = a.pnlValue ?? (a.currentValue != null ? a.currentValue - a.totalCost : 0);
+                const pct = a.totalCost > 0 && a.currentValue !== null ? (pnl / a.totalCost) * 100 : (a.pnlPercent ?? null);
                 const positive = pnl >= 0;
-                const currentValue = a.currentValue ?? a.totalCost;
-                const formattedValue = currentValue.toLocaleString('ru-RU', {
+                const currentValue = currentVal;
+                const formattedMarketValue = currentValue.toLocaleString('ru-RU', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 });
@@ -226,9 +251,13 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 });
+                const pnlFormatted = Math.abs(pnl) >= 1
+                  ? pnl.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : pnl.toFixed(2);
                 const displaySymbol = (a.symbol || '').trim().toUpperCase();
                 const symbolLabel = displaySymbol || (a.symbol || '').trim() || '—';
-                const logoUri = displaySymbol ? getAssetLogoUri(displaySymbol) : null;
+                const logoUrl = resolveAssetLogoUrl(a.logo, displaySymbol);
+                const hasPnl = pct !== null && pct !== undefined && Number.isFinite(pct);
 
                 return (
                   <TouchableOpacity
@@ -239,26 +268,35 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
                       setSelectedAssetName(a.name);
                       setSelectedAssetSymbol(symbolLabel);
                       setSelectedAssetPrice(currentValue);
+                      setSelectedAssetTotalCost(a.totalCost);
+                      setSelectedAssetLogo(a.logo);
                       setShowAssetView(true);
-                      onShowAssetView?.(true);
                     }}
                   >
                     <View style={styles.investmentCardHeader}>
                       <View style={styles.assetLogoWrapper}>
-                        {logoUri && !failedLogos[displaySymbol] ? (
-                          <Image
-                            source={{ uri: logoUri }}
-                            style={styles.assetLogo}
-                            onError={() => handleLogoError(displaySymbol)}
-                            resizeMode="contain"
-                          />
-                        ) : (
-                          <View style={styles.assetLogoFallback}>
-                            <Text style={styles.assetLogoFallbackText}>
-                              {symbolLabel.slice(0, 2)}
-                            </Text>
-                          </View>
-                        )}
+                        {(() => {
+                          if (logoUrl.endsWith('.svg')) {
+                            return (
+                              <SvgUri
+                                uri={logoUrl}
+                                width={40}
+                                height={40}
+                                style={styles.assetLogo}
+                                onError={() => {
+                                  a.logo = `https://invest-brands.cdn-tinkoff.ru/${(a.symbol || '').toLowerCase()}x160.png`;
+                                }}
+                              />
+                            );
+                          }
+                          return (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              style={styles.assetLogo}
+                              resizeMode="contain"
+                            />
+                          );
+                        })()}
                       </View>
                       <View style={styles.investmentTextBlock}>
                         <Text style={styles.investmentName} numberOfLines={2}>
@@ -267,8 +305,13 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
                         <Text style={styles.investmentSymbol}>{symbolLabel}</Text>
                       </View>
                       <View style={styles.investmentPriceBlock}>
-                        <Text style={styles.investmentAmount}>{formattedValue} ₽</Text>
-                        <Text style={styles.priceLabel}>Текущая стоимость</Text>
+                        <Text style={styles.investmentAmount}>{formattedMarketValue} ₽</Text>
+                        <Text style={styles.priceLabel}>Стоимость на рынке</Text>
+                        {hasPnl && (
+                          <Text style={positive ? styles.investmentPnlPositive : styles.investmentPnlNegative}>
+                            {positive ? '+' : ''}{pnlFormatted} ₽  ({positive ? '+' : ''}{pct.toFixed(2)}%)
+                          </Text>
+                        )}
                       </View>
                     </View>
                     <View style={styles.investmentCardDivider} />
@@ -276,15 +319,6 @@ const InvestmentsView: React.FC<InvestmentsViewProps> = ({ onBack, onNavigate, o
                       <Text style={styles.investmentFooterText}>
                         Вложено: {formattedInvested} ₽
                       </Text>
-                      {pct !== null ? (
-                        <Text style={positive ? styles.investmentChangePositive : styles.investmentChangeNegative}>
-                          {positive ? '+' : ''}
-                          {pnlRounded.toLocaleString('ru-RU')} ₽
-                          {pct !== null ? ` (${positive ? '+' : ''}${pct.toFixed(2)}%)` : ''}
-                        </Text>
-                      ) : (
-                        <Text style={styles.investmentFooterText}>Нет данных</Text>
-                      )}
                     </View>
                   </TouchableOpacity>
                 );
@@ -506,6 +540,18 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontSize: 11,
     color: '#888888',
+  },
+  investmentPnlPositive: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2E7D32',
+    marginTop: 4,
+  },
+  investmentPnlNegative: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#C62828',
+    marginTop: 4,
   },
   investmentCardDivider: {
     height: 1,

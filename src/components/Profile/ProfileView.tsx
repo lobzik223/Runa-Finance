@@ -193,7 +193,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
   }
 
   if (showPremium) {
-    return <PremiumView onBack={() => setShowPremium(false)} />;
+    return (
+      <PremiumView
+        onBack={() => {
+          setShowPremium(false);
+          void fetchUser(true);
+        }}
+      />
+    );
   }
 
   if (showPrivacy) {
@@ -253,6 +260,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ onBack, onNavigate, onLogout 
                 <Text style={styles.userName}>{user?.name || 'Пользователь'}</Text>
               )}
               <Text style={styles.userEmail}>{user?.email || ''}</Text>
+              {user?.id && (
+                <View style={styles.accountIdRow}>
+                  <View style={styles.accountIdBadge}>
+                    <Text style={styles.accountIdText}>ID: {user.id}</Text>
+                  </View>
+                  {user.premiumUntil && new Date(user.premiumUntil) > new Date() && (
+                    <View style={styles.premiumMiniBadge}>
+                      <Image source={require('../../../images/icon/subicon.png')} style={styles.premiumMiniIcon} />
+                      <Text style={styles.premiumMiniText}>Premium</Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
 
             <View style={styles.actionButtonsContainer}>
@@ -444,6 +464,44 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: '#666666',
+  },
+  accountIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  accountIdBadge: {
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  accountIdText: {
+    fontSize: 11,
+    color: '#888888',
+    fontWeight: '600',
+  },
+  premiumMiniBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1D4981',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  premiumMiniIcon: {
+    width: 14,
+    height: 14,
+    resizeMode: 'contain',
+  },
+  premiumMiniText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   actionButtonsContainer: {
     flexDirection: 'row',

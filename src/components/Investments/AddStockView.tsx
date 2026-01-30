@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,10 @@ import {
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SvgUri } from 'react-native-svg';
 import {
   apiService,
+  resolveAssetLogoUrl,
   type InvestmentAssetType,
   type AssetSearchResult,
   type SearchAssetType,
@@ -70,6 +72,7 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
   const [activeFilter, setActiveFilter] = useState<SearchAssetType | null>('STOCK');
   const [selectedAsset, setSelectedAsset] = useState<AssetSearchResult | null>(null);
   const [news, setNews] = useState<MarketNewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
   const [popularAssets, setPopularAssets] = useState<AssetWidget[]>([]);
   const [fallingAssets, setFallingAssets] = useState<AssetWidget[]>([]);
   const [risingAssets, setRisingAssets] = useState<AssetWidget[]>([]);
@@ -78,8 +81,13 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
   const [viewingAsset, setViewingAsset] = useState<AssetSearchResult | null>(null);
   const hasLoadedAssetsOnce = useRef(false);
 
+  const lastShowAssetView = useRef(false);
   useEffect(() => {
-    onShowAssetView?.(!!viewingAsset);
+    const show = !!viewingAsset;
+    if (lastShowAssetView.current !== show) {
+      onShowAssetView?.(show);
+      lastShowAssetView.current = show;
+    }
   }, [viewingAsset, onShowAssetView]);
 
   useEffect(() => {
@@ -124,29 +132,38 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
     };
   }, [searchQuery, activeFilter]);
 
-  const parseNum = (v: string) => {
-    const n = Number(String(v).replace(/[^\d.,]/g, '').replace(',', '.'));
-    return Number.isFinite(n) ? n : NaN;
-  };
-
-  const handleSelectAsset = useCallback((asset: AssetSearchResult) => {
+  const handleSelectAsset = (asset: AssetSearchResult) => {
     setSelectedAsset(asset);
     setSearchQuery(asset.symbol || asset.name);
     setSearchError('');
-  }, []);
+    
+    // Сразу открываем аналитику при выборе из поиска
+    handleSelectWidgetAsset({
+      ticker: asset.symbol,
+      name: asset.name,
+      price: 0, // Цена подтянется в AssetViewScreen
+      change: 0,
+      changePercent: 0,
+      logo: asset.logo || '',
+      type: asset.type,
+      currency: asset.currency,
+      exchange: asset.exchange
+    });
+  };
 
-  const handleSelectWidgetAsset = useCallback((widget: AssetWidget) => {
+  const handleSelectWidgetAsset = (widget: AssetWidget) => {
     const asset: AssetSearchResult = {
       symbol: widget.ticker,
       name: widget.name,
       type: (widget.type as SearchAssetType) || 'STOCK',
       currency: widget.currency || 'RUB',
       exchange: widget.exchange || null,
+      logo: widget.logo,
     };
     setViewingAsset(asset);
-  }, []);
+  };
 
-  const handleBuyFromView = useCallback(async (ticker: string, quantity: number, price: number) => {
+  const handleBuyFromView = async (ticker: string, quantity: number, price: number) => {
     try {
       // Создаем актив если его еще нет
       const asset: any = await apiService.addInvestmentAsset({
@@ -174,14 +191,17 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
     } catch (error: any) {
       throw new Error(error?.message || 'Не удалось купить акции');
     }
-  }, [onBack]);
+  };
 
   const reloadNews = useCallback(async () => {
+    setNewsLoading(true);
     try {
       const fetched = await apiService.getMarketNews(5);
-      setNews(fetched);
+      setNews(Array.isArray(fetched) ? fetched : []);
     } catch {
       setNews([]);
+    } finally {
+      setNewsLoading(false);
     }
   }, []);
 
@@ -195,22 +215,45 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
         apiService.getPopularAssets('rising').catch(() => []),
         apiService.getPopularAssets('dividend').catch(() => []),
       ]);
-      setPopularAssets(popular);
-      setFallingAssets(falling);
-      setRisingAssets(rising);
-      setDividendAssets(dividend);
+      
+      // Обновляем только цены и изменения, сохраняя порядок тикеров, чтобы UI не "прыгал"
+      const updateList = (prev: AssetWidget[], next: AssetWidget[]) => {
+        if (next.length === 0) return prev; // Если новые данные пустые, оставляем старые
+        if (prev.length === 0) return next;
+        
+        // Глубокое сравнение для предотвращения лишних ререндеров
+        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+
+        // Если тикеры те же, просто обновляем данные. Если другие - заменяем.
+        const prevTickers = prev.map(a => a.ticker).sort().join(',');
+        const nextTickers = next.map(a => a.ticker).sort().join(',');
+        
+        if (prevTickers === nextTickers) {
+          return prev.map(p => {
+            const n = next.find(a => a.ticker === p.ticker);
+            return n ? { ...p, ...n } : p;
+          });
+        }
+        return next;
+      };
+
+      setPopularAssets(prev => updateList(prev, popular));
+      setFallingAssets(prev => updateList(prev, falling));
+      setRisingAssets(prev => updateList(prev, rising));
+      setDividendAssets(prev => updateList(prev, dividend));
+      
       hasLoadedAssetsOnce.current = true;
     } catch (error) {
       console.error('Ошибка загрузки активов:', error);
     } finally {
-      setLoadingAssets(false);
+      if (isFirstLoad) setLoadingAssets(false);
     }
   }, []);
 
   useEffect(() => {
     void reloadNews();
     void reloadAssets();
-  }, [reloadNews, reloadAssets]);
+  }, []); // Пустой массив, так как reloadAssets и reloadNews стабильны
 
   // Обновляем только цены карточек (без перерисовки всего экрана)
   useEffect(() => {
@@ -221,7 +264,9 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
     return () => clearInterval(interval);
   }, [reloadAssets]);
 
-  const handleAddAsset = useCallback(() => {
+  const parseNum = (val: string) => parseFloat(val.replace(',', '.'));
+
+  const handleAddAsset = () => {
     void (async () => {
       const normalizedQuery = searchQuery.trim();
       const targetName =
@@ -308,13 +353,12 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
         Alert.alert('Ошибка', errorMsg);
       }
     })();
-  }, [searchQuery, quantity, purchasePrice, purchaseDate, selectedAsset, searchResults, onBack]);
+  };
 
-  const trimmedQuery = searchQuery.trim();
-  const visiblePopular = popularAssets.filter((asset) => asset.price > 0);
-  const visibleRising = risingAssets.filter((asset) => asset.price > 0);
-  const visibleFalling = fallingAssets.filter((asset) => asset.price > 0);
-  const visibleDividend = dividendAssets.filter((asset) => asset.price > 0);
+  const visiblePopular = useMemo(() => popularAssets.filter((asset) => asset.price > 0), [popularAssets]);
+  const visibleRising = useMemo(() => risingAssets.filter((asset) => asset.price > 0), [risingAssets]);
+  const visibleFalling = useMemo(() => fallingAssets.filter((asset) => asset.price > 0), [fallingAssets]);
+  const visibleDividend = useMemo(() => dividendAssets.filter((asset) => asset.price > 0), [dividendAssets]);
 
   if (viewingAsset) {
     return (
@@ -342,7 +386,7 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Добавление акции</Text>
+          <Text style={styles.headerTitle}>Каталог акций</Text>
         </View>
         <View style={styles.backButton} />
       </View>
@@ -353,13 +397,89 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.infoCard}>
-          <Text style={{ color: '#666', fontSize: 13, marginBottom: 4 }}>Каталог акций</Text>
-          <Text style={{ color: '#1D4981', fontSize: 24, fontWeight: '700' }}>
-            Выбирайте активы для инвестиций
-          </Text>
+        {/* Поиск и фильтры */}
+        <View style={styles.searchSection}>
+          <Text style={styles.sectionTitle}>Поиск актива</Text>
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Тикер или название (например, SBER, GAZP)"
+            placeholderTextColor="#999"
+            autoCapitalize="characters"
+          />
+          <View style={styles.filterRow}>
+            {TYPE_FILTERS.map((filter) => {
+              const isActive = activeFilter === filter.value;
+              return (
+                <TouchableOpacity
+                  key={filter.label}
+                  style={[styles.filterChip, isActive && styles.filterChipActive]}
+                  onPress={() => setActiveFilter(filter.value)}
+                >
+                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.searchResultsContainer}>
+            {searching ? (
+              <ActivityIndicator color="#1D4981" />
+            ) : searchError ? (
+              <Text style={styles.searchError}>{searchError}</Text>
+            ) : searchResults.length === 0 ? (
+              <Text style={styles.searchHint}>
+                {searchQuery.trim().length < 2
+                  ? 'Введите минимум 2 символа для поиска'
+                  : 'Ничего не найдено'}
+              </Text>
+            ) : (
+              searchResults.map((result) => (
+                <TouchableOpacity
+                  key={`${result.symbol}-${result.name}`}
+                  style={styles.searchResultCard}
+                  onPress={() => handleSelectAsset(result)}
+                >
+                  <View style={styles.searchResultRow}>
+                    <View style={styles.searchResultLogoContainer}>
+                      {(() => {
+                        const logoUrl = resolveAssetLogoUrl(result.logo, result.symbol);
+                        if (logoUrl.endsWith('.svg')) {
+                          return (
+                            <SvgUri
+                              uri={logoUrl}
+                              width={32}
+                              height={32}
+                              onError={() => {
+                                result.logo = `https://invest-brands.cdn-tinkoff.ru/${(result.symbol || '').toLowerCase()}x160.png`;
+                              }}
+                            />
+                          );
+                        }
+                        return (
+                          <Image
+                            source={{ uri: logoUrl }}
+                            style={{ width: 32, height: 32 }}
+                            resizeMode="contain"
+                          />
+                        );
+                      })()}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.searchResultTitle}>{result.name}</Text>
+                      <Text style={styles.searchResultMeta}>{result.symbol} • {SEARCH_TYPE_LABELS[result.type]}</Text>
+                    </View>
+                    <Text style={styles.searchResultExchange}>{result.exchange || 'MOEX'}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
         </View>
 
+        {/* Секции виджетов */}
         {loadingAssets ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color="#1D4981" size="large" />
@@ -380,16 +500,29 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
                       onPress={() => handleSelectWidgetAsset(asset)}
                     >
                       <View style={styles.widgetLogoContainer}>
-                        <Image
-                          source={{
-                            uri: asset.logo || `https://invest-brands.cdn-tinkoff.ru/${asset.ticker.toLowerCase()}x160.png`,
-                          }}
-                          style={styles.widgetLogo}
-                          onError={() => {
-                            // Fallback handled by background color
-                          }}
-                          resizeMode="contain"
-                        />
+                        {(() => {
+                          const logoUrl = resolveAssetLogoUrl(asset.logo, asset.ticker);
+                          if (logoUrl.endsWith('.svg')) {
+                            return (
+                              <SvgUri
+                                uri={logoUrl}
+                                width={48}
+                                height={48}
+                                style={styles.widgetLogo}
+                                onError={() => {
+                                  asset.logo = `https://invest-brands.cdn-tinkoff.ru/${(asset.ticker || '').toLowerCase()}x160.png`;
+                                }}
+                              />
+                            );
+                          }
+                          return (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              style={styles.widgetLogo}
+                              resizeMode="contain"
+                            />
+                          );
+                        })()}
                       </View>
                       <Text style={styles.widgetTicker}>{asset.ticker}</Text>
                       <Text style={styles.widgetName} numberOfLines={2}>
@@ -426,16 +559,29 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
                       onPress={() => handleSelectWidgetAsset(asset)}
                     >
                       <View style={styles.widgetLogoContainer}>
-                        <Image
-                          source={{
-                            uri: asset.logo || `https://invest-brands.cdn-tinkoff.ru/${asset.ticker.toLowerCase()}x160.png`,
-                          }}
-                          style={styles.widgetLogo}
-                          onError={() => {
-                            // Fallback handled by background color
-                          }}
-                          resizeMode="contain"
-                        />
+                        {(() => {
+                          const logoUrl = resolveAssetLogoUrl(asset.logo, asset.ticker);
+                          if (logoUrl.endsWith('.svg')) {
+                            return (
+                              <SvgUri
+                                uri={logoUrl}
+                                width={48}
+                                height={48}
+                                style={styles.widgetLogo}
+                                onError={() => {
+                                  asset.logo = `https://invest-brands.cdn-tinkoff.ru/${(asset.ticker || '').toLowerCase()}x160.png`;
+                                }}
+                              />
+                            );
+                          }
+                          return (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              style={styles.widgetLogo}
+                              resizeMode="contain"
+                            />
+                          );
+                        })()}
                       </View>
                       <Text style={styles.widgetTicker}>{asset.ticker}</Text>
                       <Text style={styles.widgetName} numberOfLines={2}>
@@ -466,16 +612,29 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
                       onPress={() => handleSelectWidgetAsset(asset)}
                     >
                       <View style={styles.widgetLogoContainer}>
-                        <Image
-                          source={{
-                            uri: asset.logo || `https://invest-brands.cdn-tinkoff.ru/${asset.ticker.toLowerCase()}x160.png`,
-                          }}
-                          style={styles.widgetLogo}
-                          onError={() => {
-                            // Fallback handled by background color
-                          }}
-                          resizeMode="contain"
-                        />
+                        {(() => {
+                          const logoUrl = resolveAssetLogoUrl(asset.logo, asset.ticker);
+                          if (logoUrl.endsWith('.svg')) {
+                            return (
+                              <SvgUri
+                                uri={logoUrl}
+                                width={48}
+                                height={48}
+                                style={styles.widgetLogo}
+                                onError={() => {
+                                  asset.logo = `https://invest-brands.cdn-tinkoff.ru/${(asset.ticker || '').toLowerCase()}x160.png`;
+                                }}
+                              />
+                            );
+                          }
+                          return (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              style={styles.widgetLogo}
+                              resizeMode="contain"
+                            />
+                          );
+                        })()}
                       </View>
                       <Text style={styles.widgetTicker}>{asset.ticker}</Text>
                       <Text style={styles.widgetName} numberOfLines={2}>
@@ -506,16 +665,29 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
                       onPress={() => handleSelectWidgetAsset(asset)}
                     >
                       <View style={styles.widgetLogoContainer}>
-                        <Image
-                          source={{
-                            uri: asset.logo || `https://invest-brands.cdn-tinkoff.ru/${asset.ticker.toLowerCase()}x160.png`,
-                          }}
-                          style={styles.widgetLogo}
-                          onError={() => {
-                            // Fallback handled by background color
-                          }}
-                          resizeMode="contain"
-                        />
+                        {(() => {
+                          const logoUrl = resolveAssetLogoUrl(asset.logo, asset.ticker);
+                          if (logoUrl.endsWith('.svg')) {
+                            return (
+                              <SvgUri
+                                uri={logoUrl}
+                                width={48}
+                                height={48}
+                                style={styles.widgetLogo}
+                                onError={() => {
+                                  asset.logo = `https://invest-brands.cdn-tinkoff.ru/${(asset.ticker || '').toLowerCase()}x160.png`;
+                                }}
+                              />
+                            );
+                          }
+                          return (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              style={styles.widgetLogo}
+                              resizeMode="contain"
+                            />
+                          );
+                        })()}
                       </View>
                       <Text style={styles.widgetTicker}>{asset.ticker}</Text>
                       <Text style={styles.widgetName} numberOfLines={2}>
@@ -541,149 +713,26 @@ const AddStockView: React.FC<AddStockViewProps> = ({ onBack, onShowAssetView }) 
           </>
         )}
 
-        <View style={styles.searchSection}>
-          <Text style={styles.sectionTitle}>Поиск актива</Text>
-          <TextInput
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Тикер или название (например, SBER, GAZP, SBERP)"
-            placeholderTextColor="#999"
-            autoCapitalize="characters"
-          />
-          <View style={styles.filterRow}>
-            {TYPE_FILTERS.map((filter) => {
-              const isActive = activeFilter === filter.value;
-              return (
-                <TouchableOpacity
-                  key={filter.label}
-                  style={[styles.filterChip, isActive && styles.filterChipActive]}
-                  onPress={() => setActiveFilter(filter.value)}
-                >
-                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                    {filter.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={styles.searchResultsContainer}>
-            {searching ? (
-              <ActivityIndicator color="#1D4981" />
-            ) : searchError ? (
-              <Text style={styles.searchError}>{searchError}</Text>
-            ) : searchResults.length === 0 ? (
-              <Text style={styles.searchHint}>
-                {trimmedQuery.length < 2
-                  ? 'Введите минимум 2 символа, чтобы увидеть активы из Tinkoff'
-                  : 'По вашему запросу пока ничего не найдено'}
-              </Text>
-            ) : (
-              searchResults.map((result) => {
-                const isActive =
-                  selectedAsset?.symbol === result.symbol && selectedAsset?.name === result.name;
-                return (
-                  <TouchableOpacity
-                    key={`${result.symbol}-${result.name}`}
-                    style={[styles.searchResultCard, isActive && styles.searchResultCardActive]}
-                    onPress={() => handleSelectAsset(result)}
-                  >
-                    <View>
-                      <Text style={styles.searchResultTitle}>{result.name}</Text>
-                      <Text style={styles.searchResultMeta}>{result.symbol}</Text>
-                    </View>
-                    <View style={styles.searchResultMetaRow}>
-                      <Text style={styles.searchChip}>{SEARCH_TYPE_LABELS[result.type]}</Text>
-                      <Text style={styles.searchMetaText}>{result.exchange || '—'}</Text>
-                      <Text style={styles.searchMetaText}>{result.currency}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </View>
-        </View>
-
-        {selectedAsset && (
-          <View style={styles.selectedAssetInfo}>
-            <Text style={styles.sectionTitle}>Выбранный актив</Text>
-            <Text style={styles.selectedAssetTitle}>
-              {selectedAsset.name} ({selectedAsset.symbol})
-            </Text>
-            <View style={styles.selectedAssetMetaRow}>
-              <Text style={styles.selectedAssetTag}>{SEARCH_TYPE_LABELS[selectedAsset.type]}</Text>
-              <Text style={styles.selectedAssetTag}>{selectedAsset.exchange || '—'}</Text>
-              <Text style={styles.selectedAssetTag}>{selectedAsset.currency}</Text>
-            </View>
-            <TouchableOpacity onPress={() => setSelectedAsset(null)}>
-              <Text style={styles.clearSelectionText}>Сбросить выбор</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.detailsSection}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Количество</Text>
-            <TextInput
-              style={styles.inputField}
-              value={quantity}
-              onChangeText={setQuantity}
-              placeholder="Сколько штук куплено"
-              placeholderTextColor="#999"
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Цена покупки</Text>
-            <View style={styles.priceInputContainer}>
-              <TextInput
-                style={styles.priceInputField}
-                value={purchasePrice}
-                onChangeText={setPurchasePrice}
-                placeholder="Цена за 1 шт."
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-              />
-              <TouchableOpacity style={styles.currencyButton}>
-                <Text style={styles.currencyIcon}>₽</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Дата покупки</Text>
-            <View style={styles.dateInputContainer}>
-              <TextInput
-                style={styles.dateInputField}
-                value={purchaseDate}
-                onChangeText={setPurchaseDate}
-                placeholder="ГГГГ-ММ-ДД"
-                placeholderTextColor="#999"
-              />
-              <Text style={styles.dropdownIcon}>▼</Text>
-            </View>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.addButton, { marginTop: selectedAsset ? 12 : 24 }]}
-          onPress={handleAddAsset}
-        >
-          <Text style={styles.addButtonText}>Добавить актив</Text>
-        </TouchableOpacity>
-
+        {/* Новости */}
         <View style={styles.newsSection}>
           <Text style={styles.newsSectionTitle}>Новости фондового рынка</Text>
-          {news.length === 0 ? (
+          {newsLoading ? (
+            <View style={styles.newsCard}>
+              <ActivityIndicator color="#1D4981" size="small" style={{ marginBottom: 10 }} />
+              <Text style={styles.newsText}>Загрузка новостей...</Text>
+            </View>
+          ) : news.length === 0 ? (
             <View style={styles.newsCard}>
               <Text style={styles.newsText}>Пока нет новостей</Text>
             </View>
           ) : (
             news.map((n) => (
-              <View key={n.id} style={styles.newsCard}>
+              <TouchableOpacity key={n.id} style={styles.newsCard}>
                 <Text style={styles.newsText}>{n.title}</Text>
-              </View>
+                <Text style={{ color: '#666', fontSize: 12, marginTop: 8 }}>
+                  {n.publishedAt ? new Date(n.publishedAt).toLocaleDateString('ru-RU') : new Date().toLocaleDateString('ru-RU')}
+                </Text>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -946,6 +995,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#D4D4D4',
+  },
+  searchResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchResultLogoContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#E0E7FF',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  searchResultExchange: {
+    fontSize: 12,
+    color: '#1D4981',
+    fontWeight: '700',
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   searchResultCardActive: {
     backgroundColor: '#D0E2FF',

@@ -18,17 +18,55 @@ const getApiBaseUrl = (): string => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+/** Базовый URL сервера без суффикса /api (для статики: иконки акций) */
+export function getApiOrigin(): string {
+  return API_BASE_URL.replace(/\/api\/?$/, '');
+}
+
+/**
+ * Возвращает полный URL логотипа актива.
+ * Если бэкенд вернул путь вида /assets/icons/... — подставляется origin; иначе используется как есть (CDN).
+ * На продакшене, если свои SVG не раздаются (404), используем CDN Tinkoff, чтобы не спамить ошибками.
+ */
+export function resolveAssetLogoUrl(logo?: string | null, ticker?: string): string {
+  const cdnFallback = `https://invest-brands.cdn-tinkoff.ru/${(ticker || '').toLowerCase()}x160.png`;
+  if (!logo) return cdnFallback;
+  
+  // Если это путь к нашим иконкам, пробуем загрузить их.
+  if (logo.startsWith('/')) {
+    const origin = getApiOrigin();
+    // Убеждаемся, что нет двойного слеша
+    const cleanOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
+    return cleanOrigin + logo;
+  }
+  
+  return logo;
+}
+
 // Ключ для хранения токена
 const TOKEN_KEY = '@runa_finance:token';
 const REFRESH_TOKEN_KEY = '@runa_finance:refresh_token';
 const USER_KEY = '@runa_finance:user';
 
 // Интерфейсы
+export type SubscriptionStore = 'INTERNAL' | 'APPLE' | 'GOOGLE';
+export type SubscriptionStatus = 'NONE' | 'ACTIVE' | 'EXPIRED' | 'CANCELED' | 'GRACE';
+
+export interface UserSubscription {
+  status: SubscriptionStatus;
+  store: SubscriptionStore | null;
+  currentPeriodEnd: string | null; // ISO date
+}
+
 export interface User {
   id: number;
   name: string;
   email: string;
   created_at?: string;
+  createdAt?: string;
+  trialUntil?: string | null;
+  premiumUntil?: string | null;
+  subscription?: UserSubscription | null;
 }
 
 export interface AuthResponse {
@@ -135,6 +173,8 @@ export interface AssetSearchResult {
   type: SearchAssetType;
   currency: string;
   exchange?: string | null;
+  /** URL логотипа (путь /assets/icons/... или CDN) */
+  logo?: string;
 }
 
 export interface InvestmentPortfolioAsset {
@@ -144,6 +184,7 @@ export interface InvestmentPortfolioAsset {
   assetType: string;
   currency: string;
   exchange?: string | null;
+  logo?: string;
   totalQuantity: number;
   averageBuyPrice: number;
   totalCost: number;
@@ -447,6 +488,7 @@ class ApiService {
           .join('\n');
       }
       const isAuthError = response.status === 401 || response.status === 403;
+      const isQuoteNotFound = response.status === 404 && endpoint.includes('/investments/quotes/');
       const isServerError = response.status >= 500 || response.status === 502 || response.status === 503 || response.status === 504;
       
       // Обрабатываем ошибки сервера
@@ -454,8 +496,8 @@ class ApiService {
         this.handleBackendError(new Error(`Server error: ${response.status}`));
       }
       
-      // Не спамим логами LogBox на ожидаемых auth-ошибках (401/403).
-      if (!meta?.silent && !isAuthError) {
+      // Не логируем как ERROR ожидаемые случаи: auth, отсутствие котировки у провайдера
+      if (!meta?.silent && !isAuthError && !isQuoteNotFound) {
         console.error(`[API Error] ${endpoint}:`, errorMessage);
         console.error(`[API Error] Response data:`, data);
       }
@@ -550,7 +592,8 @@ class ApiService {
     } catch (error: any) {
       const msg = String(error?.message || '').toLowerCase();
       const isAuthError = msg.includes('unauthorized') || msg.includes('401');
-      if (!isAuthError) {
+      const isQuoteNotFound = msg.includes('price not available') && endpoint.includes('/quotes/');
+      if (!isAuthError && !isQuoteNotFound) {
         console.error(`[API Error] ${endpoint}:`, error);
       }
       
@@ -886,6 +929,7 @@ class ApiService {
       price: number;
       currency: string;
       exchange?: string | null;
+      logo?: string;
       timestamp: string;
     }>(`/investments/quotes/${ticker}`, {
       method: 'GET',
@@ -912,8 +956,9 @@ class ApiService {
 
   async getMarketNews(limit: number = 10): Promise<MarketNewsItem[]> {
     const query = this.buildQuery({ limit });
-    const res = await this.request<any[]>(`/market-news${query}`, { method: 'GET' });
-    return res.map((n) => ({
+    const res = await this.request<any>(`/market-news${query}`, { method: 'GET' });
+    const list = Array.isArray(res) ? res : [];
+    return list.map((n: any) => ({
       ...n,
       publishedAt: n.publishedAt ? new Date(n.publishedAt).toISOString() : new Date().toISOString(),
     }));
@@ -1025,6 +1070,10 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(params),
     });
+  }
+
+  async getPaymentConfig(): Promise<{ subscriptionSiteUrl: string }> {
+    return await this.request<{ subscriptionSiteUrl: string }>('/payments/config');
   }
 }
 
