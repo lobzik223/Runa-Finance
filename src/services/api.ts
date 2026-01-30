@@ -695,6 +695,20 @@ class ApiService {
     return response;
   }
 
+  /** Вход через Google: отправка id_token на бэкенд, сохранение токена и пользователя. */
+  async loginWithGoogle(idToken: string): Promise<AuthResponse> {
+    const response = await this.request<AuthResponse>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    });
+
+    await this.saveToken(response.token);
+    if (response.refreshToken) await this.saveRefreshToken(response.refreshToken);
+    await this.saveUser(response.user);
+
+    return response;
+  }
+
   // Получение информации о текущем пользователе
   async getMe(): Promise<{ user: User; referralCode?: string }> {
     return await this.request<{ user: User; referralCode?: string }>('/auth/me');

@@ -14,7 +14,8 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.runafinance.app"
+      "bundleIdentifier": "com.runafinance.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +29,9 @@
     "scheme": "runa-finance",
     "extra": {
       "EXPO_PUBLIC_API_URL": "https://api.runafinance.online/api",
-      "EXPO_PUBLIC_APP_KEY": "b1661a8ce017e081d1add4e9cd8688a8"
+      "EXPO_PUBLIC_APP_KEY": "b1661a8ce017e081d1add4e9cd8688a8",
+      "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "695491441576-8v59h3vn1sbfurp4im621bt1vlifud8m.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "695491441576-8v59h3vn1sbfurp4im621bt1vlifud8m.apps.googleusercontent.com"
     }
   }
 }

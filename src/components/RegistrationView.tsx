@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Google from 'expo-auth-session/providers/google';
 import { apiService } from '../services/api';
 import { GoogleIcon } from './common/icons/GoogleIcon';
 import { useToast } from '../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
 
 interface RegistrationViewProps {
   onNavigateToLogin?: () => void;
@@ -32,6 +36,53 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const googleHandled = useRef(false);
+
+  const [, result, promptAsync] = Google.useAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
+    iosClientId: Platform.OS === 'ios' ? (GOOGLE_IOS_CLIENT_ID || undefined) : undefined,
+    androidClientId: Platform.OS === 'android' ? (process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? undefined) : undefined,
+  });
+
+  useEffect(() => {
+    if (!result || googleHandled.current) return;
+    if (result.type === 'dismiss' || result.type === 'error') {
+      setLoading(false);
+      googleHandled.current = true;
+      return;
+    }
+    if (result.type === 'success') {
+      const idToken = (result.params as { id_token?: string })?.id_token ?? result.authentication?.idToken ?? null;
+      if (!idToken) {
+        setLoading(false);
+        googleHandled.current = true;
+        toast.error('Не удалось получить данные от Google');
+        return;
+      }
+      googleHandled.current = true;
+      (async () => {
+        try {
+          const response = await apiService.loginWithGoogle(idToken);
+          toast.success(`Добро пожаловать, ${response.user.name}!`);
+          setTimeout(() => onComplete?.(), 500);
+        } catch (err: any) {
+          toast.error(err?.message ?? 'Ошибка регистрации через Google');
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }
+  }, [result, onComplete, toast]);
+
+  const handleGooglePress = () => {
+    if (!GOOGLE_WEB_CLIENT_ID && !GOOGLE_IOS_CLIENT_ID) {
+      toast.error('Настройте Google Client ID в app.json (extra)');
+      return;
+    }
+    setLoading(true);
+    googleHandled.current = false;
+    promptAsync();
+  };
 
   const handleRegistration = async () => {
     // Валидация
@@ -224,11 +275,7 @@ const RegistrationView: React.FC<RegistrationViewProps> = ({ onNavigateToLogin, 
 
           <TouchableOpacity 
             style={styles.socialButton}
-            onPress={() => {
-              if (onComplete) {
-                onComplete();
-              }
-            }}
+            onPress={handleGooglePress}
             disabled={loading}
           >
             <View style={[styles.socialIcon, styles.socialIconWhite]}>
