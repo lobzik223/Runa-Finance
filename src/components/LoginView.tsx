@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import * as Google from 'expo-auth-session/providers/google';
 import { apiService } from '../services/api';
 import { GoogleIcon } from './common/icons/GoogleIcon';
@@ -19,8 +20,9 @@ import { useToast } from '../contexts/ToastContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
+const extra = Constants.expoConfig?.extra ?? {};
+const GOOGLE_WEB_CLIENT_ID = (extra.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '') as string;
+const GOOGLE_IOS_CLIENT_ID = (extra.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '695491441576-8v59h3vn1sbfurp4im621bt1vlifud8m.apps.googleusercontent.com') as string;
 
 interface LoginViewProps {
   onNavigateToRegistration?: () => void;
@@ -37,8 +39,8 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
 
   const [, result, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
-    iosClientId: Platform.OS === 'ios' ? (GOOGLE_IOS_CLIENT_ID || undefined) : undefined,
-    androidClientId: Platform.OS === 'android' ? (process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? undefined) : undefined,
+    iosClientId: Platform.OS === 'ios' ? GOOGLE_IOS_CLIENT_ID : undefined,
+    androidClientId: Platform.OS === 'android' ? ((extra.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) as string) || undefined : undefined,
   });
 
   useEffect(() => {
@@ -72,8 +74,12 @@ const LoginView: React.FC<LoginViewProps> = ({ onNavigateToRegistration, onCompl
   }, [result, onComplete, toast]);
 
   const handleGooglePress = () => {
-    if (!GOOGLE_WEB_CLIENT_ID && !GOOGLE_IOS_CLIENT_ID) {
+    if (Platform.OS === 'ios' && !GOOGLE_IOS_CLIENT_ID) {
       toast.error('Настройте Google Client ID в app.json (extra)');
+      return;
+    }
+    if (Platform.OS === 'android' && !((extra.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) as string)) {
+      toast.error('Настройте EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID в app.json (extra)');
       return;
     }
     setLoading(true);
